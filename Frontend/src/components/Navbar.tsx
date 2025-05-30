@@ -1,6 +1,6 @@
-import React from 'react'
 
-const Navbar = () => {
+const Navbar: React.FC = () => {
+    
   return (
     <div>
         <nav className='bg-gray-800 p-4'>

@@ -8,6 +8,7 @@ import {
     getCurrentUser,
     updateAccountDetials,
     changeCurrentPassword,
+    allUsers
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -19,12 +20,12 @@ router.route("/register").post(
     // this upload.feilds is middleware here.
     upload.fields([
         {
-            name:"avatar",
+            name: "avatar",
             maxCount: 1
         }
     ]),
     registerUser
-    );
+).get(verifyJWT, allUsers);
 
 router.route("/login").post(loginUser);
 // whenever u set a middleware then just put the middleware first then put the actual function which u want to send user to like i did below.
@@ -34,7 +35,7 @@ router.route("/refresh-token").post(refreshAccessToken);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/update-details").patch(verifyJWT, updateAccountDetials);
-router.route("/update-avatar").put(
+router.route("/")
     verifyJWT,
     upload.fields([
         {
@@ -42,7 +43,7 @@ router.route("/update-avatar").put(
             maxCount: 1
         }
     ]),
-    updateUserAvatar);
+    updateUserAvatar;
 
 
 export default router;

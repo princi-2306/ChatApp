@@ -20,7 +20,6 @@ type UserState = {
     updatePassword: (newPassword: string) => void;
     updateDetails: (newUsername: string, newEmail : string) => void;
     updateAvatar: (newAvatar : string) => void;
-    // removeUser : (userId : string) => void;
 }
 
 const userPost = create<UserState>()(

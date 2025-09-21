@@ -318,6 +318,26 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     );
 });
 
+// get user accept current user
+
+const allUsers = asyncHandler(async (req, res) => {
+
+    const keyword = req.query.search ? {
+        $or: [
+            { email: { $regex: req.query.search, $options: "i" } },
+            { username: { $regex: req.query.search, $options: "i" } }
+        ]
+    }
+        : {};
+    
+    const users = await User.find({
+      ...keyword,
+      _id: { $ne: req.user._id },
+    });
+    return res.status(200).json(
+        new ApiResponse(200, users, "All users fetched successfully!")
+    );
+});
 
 
 const getUserChannelProfile = asyncHandler( async (req, res) => {
@@ -447,5 +467,6 @@ export {
     updateAccountDetials,
     updateUserAvatar,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    allUsers
 };

@@ -31,7 +31,7 @@ const AddUser = ({ onClose }) => {
         }
       };
       const response = await axios.get(
-        `http://localhost:8000/api/v1/users/register?search=${search}`,
+        `http://localhost:3000/api/v1/users/register?search=${search}`,
         config
       );
       setLoading(false);
@@ -53,7 +53,7 @@ const AddUser = ({ onClose }) => {
          }
        };
        const response = await axios.post(
-         " http://localhost:8000/api/v1/chats/", {userId}, config
+         " http://localhost:3000/api/v1/chats/", {userId}, config
        );
       if (
         Array.isArray(chats) &&

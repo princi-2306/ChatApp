@@ -18,6 +18,7 @@ const ChatList = ({onChatSelect, selectedChat}) => {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
  
 
   const currentUser = userPost((state) => state.currentUser)
@@ -55,32 +56,37 @@ const ChatList = ({onChatSelect, selectedChat}) => {
     ))
   }
 
-  const deleteChat = async(chatId: string) => {
+  const deleteChat = async (chatId: string) => {
+    setDeleteLoading(chatId);
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${currentUser?.token}`
+          Authorization: `Bearer ${localStorage.getItem("tokens")}`
         }
       };
 
       setLoading(true);
 
-      const response = await axios.delete(`http://localhost:8000/api/v1/chats/delete-chat/${chatId}`, config)
+      const response = await axios.delete(`http://localhost:3000/api/v1/chats/delete-chat/${chatId}`, config)
       deleteChats(chatId);
+
+      await fetchChats();
 
       if (currentChat?._id === chatId) {
         onChatSelect(null); // if user in chat-section when chat gets deleted
       }
 
       console.log("chat deleted : ", response.data)
-      setLoading(false);
     } catch (error) {
       toast.error("chats cannot be deleted");
       console.log(error)
+    } finally {
+      setLoading(false);
     }
   }
 useEffect(() => {
   setLoggedUser(currentUser);
+  
 }, [currentUser]);
 
 useEffect(() => {
@@ -97,7 +103,7 @@ useEffect(() => {
       };
 
       const reponse = await axios.get(
-        "http://localhost:8000/api/v1/chats/fetch-chats", config
+        "http://localhost:3000/api/v1/chats/fetch-chats", config
       );
       setChats(reponse.data.data);
       // console.log(reponse.data.data)

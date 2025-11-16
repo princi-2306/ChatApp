@@ -5,7 +5,7 @@ import {
    app
 } from './app.js';
 
-const port = process.env.PORT || 8000
+const port = process.env.PORT || 3000
 
 connectDB().then(()=>{
    server.listen(port, (req, res) => {

@@ -35,7 +35,7 @@ router.route("/refresh-token").post(refreshAccessToken);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/update-details").patch(verifyJWT, updateAccountDetials);
-router.route("/")
+router.route("/update-avatar").put(
     verifyJWT,
     upload.fields([
         {
@@ -43,7 +43,8 @@ router.route("/")
             maxCount: 1
         }
     ]),
-    updateUserAvatar;
+    updateUserAvatar
+);
 
 
 export default router;

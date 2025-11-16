@@ -153,7 +153,7 @@ const ChatSection = ({ chat, onBack }) => {
       };
       setLoading(true);
       const {data} = await axios.get(
-        `http://localhost:8000/api/v1/messages/${currentChat._id}`,
+        `http://localhost:3000/api/v1/messages/${currentChat._id}`,
         config
       );
    
@@ -185,7 +185,7 @@ const ChatSection = ({ chat, onBack }) => {
         };
         setNewMessage("");
         const {data} = await axios.post(
-          "http://localhost:8000/api/v1/messages/sent",
+          "http://localhost:3000/api/v1/messages/sent",
           {
             content: newMessage,
             chatId: currentChat?._id

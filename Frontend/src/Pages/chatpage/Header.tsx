@@ -29,10 +29,10 @@ import SignOut from "./DialogBox/SignOut";
 
 const Header = () => {
   const currentUser = userPost((state) => state.currentUser);
-  const [changePassword, setChangePassowrd] = useState(false);
-  const [changeAvatar, setChangeAvatar] = useState(false);
-  const [changeDetails, setChangeDetails] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [changeAvatarOpen, setChangeAvatarOpen] = useState(false);
+  const [changeDetailsOpen, setChangeDetailsOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false); 
 
   return (
     <header className="sticky z-50 top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -57,93 +57,71 @@ const Header = () => {
                 <User className="h-6 w-6" />
                 <div className="text-lg">Settings</div>
               </div>
-              <div>
-                <AlertDialog>
-                  <AlertDialogTrigger>
-                    <div className="flex py-3 items-center gap-3">
-                      <div onClick={() => setShowProfile(true)}>
+              
+                <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+                  <DialogTrigger asChild>
+                    <div className="flex items-center gap-3">
                         <img
                           className="w-10 h-10 rounded-full"
                           src={currentUser?.avatar}
                           alt=""
                         />
-                      </div>
                       <div>{currentUser?.username}</div>
                     </div>
-                    {showProfile && (
-                      <SignOut
-                        currentUser={currentUser}
-                        onClose={() => setShowProfile(false)}
-                      />
-                    )}
-                  </AlertDialogTrigger>
-                </AlertDialog>
-              </div>
-              <div>
-                <Dialog >
-                  <DialogTrigger>
-                    <div className="flex gap-2 items-center">
-                      <div>
-                        <LockKeyhole />
-                      </div>
-                      <div>
-                        <button onClick={() => setChangePassowrd(true)}>
-                          Change Password
-                        </button>
-                      </div>
-                      {changePassword && (
-                        <ChangePassword onClose={()=>setChangePassowrd(false)} />
-                      )}
-                    </div>
-                  </DialogTrigger>
+                </DialogTrigger>
+                <SignOut onClose={() => setSignOutOpen(false)} currentUser={currentUser} />
                 </Dialog>
-              </div>
+                
+              <Separator/>
+
+              {/* Change Password Dialog */}
+              <Dialog
+                open={changePasswordOpen}
+                onOpenChange={setChangePasswordOpen}
+              >
+                <DialogTrigger asChild>
+                  <div className="flex gap-2 items-center cursor-pointer">
+                    <LockKeyhole />
+                    <button type="button">Change Password</button>
+                  </div>
+                </DialogTrigger>
+                <ChangePassword onClose={() => setChangePasswordOpen(false)} />
+              </Dialog>
+
               <Separator />
-              <div>
-                <Dialog>
-                  <DialogTrigger>
-                    <div className="flex gap-2 items-center">
-                      <div>
-                        <ImageUp />
-                      </div>
-                      <div>
-                        <button onClick={() => setChangeAvatar(true)}>
-                          Change Avatar
-                        </button>
-                      </div>
-                      {changeAvatar && (
-                        <ChangeAvatar onClose={() => setChangeAvatar(false)} />
-                      )}
-                    </div>
-                  </DialogTrigger>
-                </Dialog>
-              </div>
+
+              {/* Change Avatar Dialog */}
+              <Dialog
+                open={changeAvatarOpen}
+                onOpenChange={setChangeAvatarOpen}
+              >
+                <DialogTrigger asChild>
+                  <div className="flex gap-2 items-center cursor-pointer">
+                    <ImageUp />
+                    <button type="button">Change Avatar</button>
+                  </div>
+                </DialogTrigger>
+                <ChangeAvatar onClose={() => setChangeAvatarOpen(false)} />
+              </Dialog>
+
               <Separator />
-              <div>
-                <Dialog>
-                  <DialogTrigger>
-                    <div className="flex gap-2 items-center">
-                      <div>
-                        <UserRoundPen />
-                      </div>
-                      <div>
-                        <button onClick={() => setChangeDetails(true)}>
-                          Change Details
-                        </button>
-                      </div>
-                      {changeDetails && (
-                        <ChangeDetails
-                          onClose={() => setChangeDetails(false)}
-                        />
-                      )}
-                    </div>
-                  </DialogTrigger>
-                </Dialog>
-              </div>
+
+              {/* Change Details Dialog */}
+              <Dialog
+                open={changeDetailsOpen}
+                onOpenChange={setChangeDetailsOpen}
+              >
+                <DialogTrigger asChild>
+                  <div className="flex gap-2 items-center cursor-pointer">
+                    <UserRoundPen />
+                    <button type="button">Change Details</button>
+                  </div>
+                </DialogTrigger>
+                <ChangeDetails currentUser={currentUser} onClose={() => setChangeDetailsOpen(false)} />
+              </Dialog>
 
               <Separator />
             </div>
-            {/* Navigation items here */}
           </SheetContent>
         </Sheet>
       </div>

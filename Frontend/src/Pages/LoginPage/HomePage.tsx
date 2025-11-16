@@ -84,7 +84,7 @@ const HomePage = () => {
         }
       
         data = await axios.post(
-          "http://localhost:8000/api/v1/users/register",
+          "http://localhost:3000/api/v1/users/register",
           form,
           {
             headers: {
@@ -116,7 +116,7 @@ const HomePage = () => {
         }
       } else {
         data = await axios.post(
-          "http://localhost:8000/api/v1/users/login",
+          "http://localhost:3000/api/v1/users/login",
           {
             email: formData.email,
             password: formData.password

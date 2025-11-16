@@ -18,7 +18,7 @@ interface ChatListCardProps {
   onPin: () => void;
   onMute: () => void;
   onMarkAsRead: () => void;
-  deleteChat: () => void;
+  deleteChat: (chaId : string) => void;
 }
 
 const ChatListCard = ({
@@ -101,7 +101,7 @@ const ChatListCard = ({
               Mark as read
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={deleteChat}>
+          <DropdownMenuItem onClick={() => deleteChat(chat._id)}>
             Delete chat
           </DropdownMenuItem>
         </DropdownMenuContent>

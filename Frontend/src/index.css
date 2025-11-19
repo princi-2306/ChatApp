@@ -3,6 +3,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Fix for Dialog overlay issue */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+body:has([data-state="closed"]) {
+  pointer-events: auto !important;
+  overflow: auto !important;
+}
+
+/* Ensure body is always clickable when no dialog is open */
+body {
+  pointer-events: auto !important;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

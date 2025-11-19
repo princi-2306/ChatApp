@@ -14,12 +14,12 @@ import MessageList from "../../components/ChatSection/MessageList";
 import TypingIndicator from "../../components/ChatSection/TypingIndicator";
 import MessageInput from "../../components/ChatSection/MessageInput";
 import EmptyChatState from "../../components/ChatSection/EmptyChatState";
+import UserProfileModal from "../../components/ChatSection/UserProfileModal";
 
 const ENDPOINT = "http://localhost:8000";
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 let currentChatCompare;
 
-// UPDATED: Add attachments to Message interface
 interface Attachment {
   url: string;
   publicId: string;
@@ -34,7 +34,7 @@ interface Message {
   sender: User;
   content: string;
   chat: Chat;
-  attachments?: Attachment[]; // ADDED
+  attachments?: Attachment[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,7 +53,10 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [typing, setTyping] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]); // ADDED
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = userPost((state) => state.currentUser);
@@ -133,7 +136,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-  // UPDATED: sendMessage to handle files with FormData
   const sendMessage = async (files?: File[]) => {
     const filesToSend = files || selectedFiles;
     
@@ -153,7 +155,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     });
 
     try {
-      // UPDATED: Use FormData for file upload
       const formData = new FormData();
       
       if (newMessage.trim()) {
@@ -162,7 +163,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       
       formData.append("chatId", currentChat._id);
       
-      // Append all files
       filesToSend.forEach((file) => {
         formData.append("files", file);
       });
@@ -187,6 +187,25 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       toast.error("Cannot send message!");
       console.log(error);
     }
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    
+    if (!query.trim()) {
+      setFilteredMessages([]);
+      return;
+    }
+    
+    const filtered = messages.filter((msg) => {
+      const contentMatch = msg.content.toLowerCase().includes(query.toLowerCase());
+      const attachmentMatch = msg.attachments?.some(att => 
+        att.fileName.toLowerCase().includes(query.toLowerCase())
+      );
+      return contentMatch || attachmentMatch;
+    });
+    
+    setFilteredMessages(filtered);
   };
 
   useEffect(() => {
@@ -228,13 +247,18 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         otherUser={otherUser} 
         onBack={onBack} 
         formatTime={formatTime}
+        onSearch={handleSearch}
+        isSearching={searchQuery.length > 0}
+        searchQuery={searchQuery}
+        onViewProfile={() => setShowProfileModal(true)}
       />
 
       <MessageList
-        messages={messages}
+        messages={searchQuery ? filteredMessages : messages}
         loading={loading}
         currentUser={currentUser}
         formatTime={formatTime}
+        searchQuery={searchQuery}
       />
 
       <TypingIndicator isTyping={isTyping} />
@@ -251,6 +275,16 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         selectedFiles={selectedFiles}
         setSelectedFiles={setSelectedFiles}
       />
+
+      {showProfileModal && (
+        <UserProfileModal
+          key={otherUser?._id}
+          open={showProfileModal}
+          onOpenChange={setShowProfileModal}
+          user={otherUser}
+          formatTime={formatTime}
+        />
+      )}
     </div>
   );
 };

@@ -29,13 +29,15 @@ interface MessageListProps {
   loading: boolean;
   currentUser: User | null;
   formatTime: (date: Date | string) => string;
+  searchQuery?: string; // ADD THIS LINE
 }
 
 const MessageList: React.FC<MessageListProps> = ({ 
   messages, 
   loading, 
   currentUser, 
-  formatTime 
+  formatTime,
+  searchQuery 
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +48,23 @@ const MessageList: React.FC<MessageListProps> = ({
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  const highlightText = (text: string, query: string) => {
+      if (!query) return text;
+    
+      const parts = text.split(new RegExp(`(${query})`, 'gi'));
+      return (
+        <span>
+          {parts.map((part, i) => 
+            part.toLowerCase() === query.toLowerCase() ? (
+              <mark key={i} className="bg-yellow-300 dark:bg-yellow-600">{part}</mark>
+            ) : (
+              part
+            )
+          )}
+        </span>
+      );
+    };
 
   // ADDED: Helper function to format file size
   const formatFileSize = (bytes: number) => {
@@ -84,8 +103,10 @@ const MessageList: React.FC<MessageListProps> = ({
                     >
                       {/* Text Content */}
                       {msg.content && (
-                        <p className="text-sm whitespace-pre-wrap mb-2">{msg.content}</p>
-                      )}
+                          <p className="text-sm whitespace-pre-wrap mb-2">
+                            {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
+                          </p>
+                        )}
 
                       {/* ADDED: Attachments Display */}
                       {msg.attachments && msg.attachments.length > 0 && (

@@ -19,11 +19,22 @@ const ENDPOINT = "http://localhost:8000";
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 let currentChatCompare;
 
+// UPDATED: Add attachments to Message interface
+interface Attachment {
+  url: string;
+  publicId: string;
+  fileType: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
 interface Message {
   _id: string;
   sender: User;
   content: string;
   chat: Chat;
+  attachments?: Attachment[]; // ADDED
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +53,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [typing, setTyping] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]); // ADDED
   
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = userPost((state) => state.currentUser);
@@ -121,27 +133,52 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !currentChat?._id) {
+  // UPDATED: sendMessage to handle files with FormData
+  const sendMessage = async (files?: File[]) => {
+    const filesToSend = files || selectedFiles;
+    
+    if (!newMessage.trim() && filesToSend.length === 0) {
+      toast.error("Message cannot be empty!");
+      return;
+    }
+
+    if (!currentChat?._id) {
       toast.error("No chat selected!");
       return;
     }
-    socket.emit("stop typing", currentChat?._id);
+
+    socket.emit("stop typing", {
+      chatId: currentChat?._id,
+      userId: currentUser?._id,
+    });
+
     try {
-      const config = {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser?.token}`,
-        },
-      };
+      // UPDATED: Use FormData for file upload
+      const formData = new FormData();
+      
+      if (newMessage.trim()) {
+        formData.append("content", newMessage);
+      }
+      
+      formData.append("chatId", currentChat._id);
+      
+      // Append all files
+      filesToSend.forEach((file) => {
+        formData.append("files", file);
+      });
+
       setNewMessage("");
+      setSelectedFiles([]);
+
       const { data } = await axios.post(
         "http://localhost:8000/api/v1/messages/sent",
+        formData,
         {
-          content: newMessage,
-          chatId: currentChat?._id,
-        },
-        config
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${currentUser?.token}`,
+          },
+        }
       );
 
       socket.emit("new message", data.data);
@@ -211,6 +248,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         setOpen={setOpen}
         handleEmoji={handleEmoji}
         isMobile={isMobile}
+        selectedFiles={selectedFiles}
+        setSelectedFiles={setSelectedFiles}
       />
     </div>
   );

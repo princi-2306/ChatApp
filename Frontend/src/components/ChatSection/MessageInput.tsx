@@ -7,12 +7,14 @@ import DragAndDropModal from "./DragAndDropModal";
 interface MessageInputProps {
   newMessage: string;
   setNewMessage: (message: string) => void;
-  sendMessage: () => void;
+  sendMessage: (files?: File[]) => void; // UPDATED: Added files parameter
   typingHandler: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
   handleEmoji: (e: any) => void;
   isMobile: boolean;
+  selectedFiles: File[]; // ADDED
+  setSelectedFiles: (files: File[]) => void; // ADDED
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -23,6 +25,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   setOpen,
   handleEmoji,
   isMobile,
+  selectedFiles, // ADDED
+  setSelectedFiles, // ADDED
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
@@ -58,14 +62,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setShowAttachmentMenu(false);
   };
 
+  // UPDATED: Send files immediately when selected
   const handleFilesSelected = (files: File[]) => {
-    console.log('Files selected:', files);
-    // Handle the uploaded files here
-    // You can process them, upload to server, add to message, etc.
-    // Example: Show file names in console
-    files.forEach(file => {
-      console.log(`File: ${file.name}, Size: ${file.size}, Type: ${file.type}`);
-    });
+    setSelectedFiles(files);
+    sendMessage(files); // Send with files
   };
 
   return (
@@ -151,9 +151,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </Button>
         </div>
         <Button
-          onClick={sendMessage}
+          onClick={() => sendMessage()} // UPDATED: Call without files
           size="icon"
-          disabled={newMessage?.trim() === ""}
+          disabled={newMessage?.trim() === "" && selectedFiles.length === 0}
           className="h-10 w-10 mb-1"
         >
           <Send className="h-5 w-5" />

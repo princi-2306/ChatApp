@@ -1,31 +1,6 @@
 import mongoose, {Schema} from "mongoose";
-import jwt from "jsonwebtoken";
 
 const messageSchema = new Schema(
-  // {
-
-  //   senderId: {
-  //     type: mongoose.Schema.Types.ObjectId,
-  //     ref: "User",
-  //     required: true,
-  //   },
-  //   reciverId: {
-  //     type: mongoose.Schema.Types.ObjectId,
-  //     ref: "User",
-  //     required: true,
-  //   },
-  //   text: {
-  //     type: String,
-  //     maxlength: 1200,
-  //   },
-  //   image: {
-  //     type: String, // cloudnary URL
-  //   },
-  //   seen: {
-  //     type: Boolean,
-  //     default: false,
-  //   },
-  // },
   {
     sender: {
       type: mongoose.Schema.Types.ObjectId,
@@ -37,10 +12,35 @@ const messageSchema = new Schema(
     },
     chat: {
       type: mongoose.Schema.Types.ObjectId,
-      ref : "Chat"
+      ref: "Chat"
     },
+    // UPDATED: Support multiple attachments
+    attachments: [{
+      url: {
+        type: String, // Cloudinary URL
+        required: true
+      },
+      publicId: {
+        type: String, // For deletion
+      },
+      fileType: {
+        type: String, // 'image', 'document', 'video', etc.
+        required: true
+      },
+      fileName: {
+        type: String,
+        required: true
+      },
+      fileSize: {
+        type: Number, // in bytes
+      },
+      mimeType: {
+        type: String, // e.g., 'image/png', 'application/pdf'
+      }
+    }],
+    // Keep for backward compatibility
     image: {
-      type: String, //cloudinary url
+      type: String,
     }
   },
   { timestamps: true }

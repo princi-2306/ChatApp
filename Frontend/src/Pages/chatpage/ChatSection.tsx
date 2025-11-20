@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import userPost from "@/components/store/userStore";
 import useChatStore from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
+import useCallStore from "@/components/store/callStore"; // NEW
 import { Chat } from "@/components/store/chatStore";
 import { User } from "@/components/store/userStore";
 import axios from "axios";
@@ -16,6 +17,11 @@ import TypingIndicator from "../../components/ChatSection/TypingIndicator";
 import MessageInput from "../../components/ChatSection/MessageInput";
 import EmptyChatState from "../../components/ChatSection/EmptyChatState";
 import UserProfileModal from "../../components/ChatSection/UserProfileModal";
+import VoiceCallModal from "../../components/ChatSection/VoiceCallModal"; // NEW
+import ActiveCallModal from "../../components/ChatSection/ActiveCallModal"; // NEW
+
+// NEW: Import voice call hook
+import { useVoiceCall } from "../../hooks/useVoiceCall";
 
 const ENDPOINT = "http://localhost:8000";
 let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
@@ -68,6 +74,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const incrementUnreadForChat = useNotificationStore((state) => state.incrementUnreadForChat);
   const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
   
+  // NEW: Call store
+  const { incomingCall, activeCall } = useCallStore();
+
   const fetchUnreadCount = async () => {
     try {
       const config = {
@@ -109,20 +118,15 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     socket.on("new notification", ({ notification, chatId }) => {
       console.log("New notification received:", notification);
       
-      // Add to notification store
       addNotification(notification);
-      
-      // Increment unread count for this chat
       incrementUnreadForChat(
         chatId,
         notification.chat.chatName,
         notification.chat.isGroupChat
       );
       
-      // Fetch updated unread count
       fetchUnreadCount();
       
-      // Show toast notification if not in the current chat
       if (!currentChatCompare || currentChatCompare._id !== chatId) {
         toast.info(`New message from ${notification.sender.username}`, {
           description: notification.content,
@@ -142,6 +146,15 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     currentChat && !currentChat.isGroupChat
       ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) || null
       : null;
+
+  // NEW: Initialize voice call hook
+  const {
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+  } = useVoiceCall(socket, currentUser, otherUser);
 
   const typingHandler = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
@@ -247,7 +260,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-  // NEW: Clear Chat Function
   const handleClearChat = async () => {
     if (!currentChat?._id) {
       toast.error("No chat selected!");
@@ -266,10 +278,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         config
       );
 
-      // Clear messages from state
       setMessages([]);
-      
-      // Clear search query and filtered messages
       setSearchQuery("");
       setFilteredMessages([]);
 
@@ -313,10 +322,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         !currentChatCompare ||
         currentChatCompare._id !== newMessageRecieved.chat._id
       ) {
-        // Message is for a different chat - notification will be handled by socket listener
         console.log("Message received for different chat");
       } else {
-        // Message is for current chat - add it to messages
         setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
       }
     });
@@ -342,51 +349,69 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background w-full">
-      <ChatHeader 
-        otherUser={otherUser} 
-        onBack={onBack} 
-        formatTime={formatTime}
-        onSearch={handleSearch}
-        isSearching={searchQuery.length > 0}
-        searchQuery={searchQuery}
-        onViewProfile={() => setShowProfileModal(true)}
-        onClearChat={handleClearChat}
-      />
-
-      <MessageList
-        messages={searchQuery ? filteredMessages : messages}
-        loading={loading}
-        currentUser={currentUser}
-        formatTime={formatTime}
-        searchQuery={searchQuery}
-      />
-
-      <TypingIndicator isTyping={isTyping} />
-
-      <MessageInput
-        newMessage={newMessage}
-        setNewMessage={setNewMessage}
-        sendMessage={sendMessage}
-        typingHandler={typingHandler}
-        open={open}
-        setOpen={setOpen}
-        handleEmoji={handleEmoji}
-        isMobile={isMobile}
-        selectedFiles={selectedFiles}
-        setSelectedFiles={setSelectedFiles}
-      />
-
-      {showProfileModal && (
-        <UserProfileModal
-          key={otherUser?._id}
-          open={showProfileModal}
-          onOpenChange={setShowProfileModal}
-          user={otherUser}
+    <>
+      <div className="flex flex-col h-full bg-background w-full">
+        <ChatHeader 
+          otherUser={otherUser} 
+          onBack={onBack} 
           formatTime={formatTime}
+          onSearch={handleSearch}
+          isSearching={searchQuery.length > 0}
+          searchQuery={searchQuery}
+          onViewProfile={() => setShowProfileModal(true)}
+          onClearChat={handleClearChat}
+          onInitiateCall={initiateCall} // NEW
+        />
+
+        <MessageList
+          messages={searchQuery ? filteredMessages : messages}
+          loading={loading}
+          currentUser={currentUser}
+          formatTime={formatTime}
+          searchQuery={searchQuery}
+        />
+
+        <TypingIndicator isTyping={isTyping} />
+
+        <MessageInput
+          newMessage={newMessage}
+          setNewMessage={setNewMessage}
+          sendMessage={sendMessage}
+          typingHandler={typingHandler}
+          open={open}
+          setOpen={setOpen}
+          handleEmoji={handleEmoji}
+          isMobile={isMobile}
+          selectedFiles={selectedFiles}
+          setSelectedFiles={setSelectedFiles}
+        />
+
+        {showProfileModal && (
+          <UserProfileModal
+            key={otherUser?._id}
+            open={showProfileModal}
+            onOpenChange={setShowProfileModal}
+            user={otherUser}
+            formatTime={formatTime}
+          />
+        )}
+      </div>
+
+      {/* NEW: Voice Call Modals */}
+      {incomingCall && (
+        <VoiceCallModal
+          onAccept={acceptCall}
+          onReject={rejectCall}
         />
       )}
-    </div>
+
+      {activeCall && (
+        <ActiveCallModal
+          onEndCall={endCall}
+          onToggleMute={toggleMute}
+        />
+      )}
+    </>
   );
 };
 

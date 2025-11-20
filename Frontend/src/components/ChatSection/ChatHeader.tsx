@@ -4,6 +4,7 @@ import {
   MoreVertical,
   ArrowLeft,
   X,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,6 +36,7 @@ interface ChatHeaderProps {
   searchQuery: string;
   onViewProfile: () => void;
   onClearChat: () => Promise<void>;
+  onInitiateCall: () => void; // NEW: Voice call handler
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ 
@@ -45,7 +47,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   isSearching,
   searchQuery,
   onViewProfile,
-  onClearChat
+  onClearChat,
+  onInitiateCall, // NEW
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -143,9 +146,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* NEW: Voice Call Button */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={onInitiateCall}
+                className="hover:bg-primary/10 hover:text-primary"
+              >
+                <Phone className="h-5 w-5" />
+              </Button>
+              
               <Button variant="ghost" size="icon" onClick={handleSearchToggle}>
                 <Search className="h-5 w-5" />
               </Button>
+              
               <DropdownMenu>
                 <DropdownMenuTrigger>
                   <Button variant="ghost" size="icon">

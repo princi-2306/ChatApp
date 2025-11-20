@@ -8,7 +8,8 @@ import userRouter from "./routes/user.routes.js"
 import adminRouter from "./routes/admin.routes.js"
 import messageRouter from "./routes/message.route.js"
 import chatRouter from './routes/chats.router.js';
-import notificationRouter from './routes/notification.routes.js'; // NEW: Import notification routes
+import notificationRouter from './routes/notification.routes.js';
+import callRouter from './routes/call.routes.js'; // NEW: Import call routes
 import { Server } from 'socket.io';
 
 const app = express();
@@ -22,6 +23,9 @@ const io = new Server(server, {
         credentials: true
     }
 })
+
+// Store active calls in memory (you can also use Redis for production)
+const activeCalls = new Map();
 
 io.on("connection", (socket) => {
     console.log("connected to socket.io");
@@ -38,7 +42,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("typing", ({ chatId, userId }) => {
-      socket.in(chatId).emit("typing", { userId }); // broadcast to other users in room
+      socket.in(chatId).emit("typing", { userId });
     });
 
     socket.on("stop typing", ({ chatId, userId }) => {
@@ -57,19 +61,132 @@ io.on("connection", (socket) => {
         });
     });
 
-    // NEW: Handle notification read events
     socket.on("notification read", ({ notificationId, userId }) => {
         console.log(`Notification ${notificationId} read by user ${userId}`);
-        // You can broadcast this to update UI in real-time if needed
     });
+
+    // ==================== VOICE CALL EVENTS ====================
+    
+    // Initiate a call
+    socket.on("call:initiate", ({ callerId, receiverId, callerName, callerAvatar, offer }) => {
+        console.log(`Call initiated from ${callerId} to ${receiverId}`);
+        
+        // Store active call
+        activeCalls.set(callerId, { 
+            receiverId, 
+            status: 'ringing',
+            startTime: Date.now() 
+        });
+        
+        // Notify receiver about incoming call
+        socket.to(receiverId).emit("call:incoming", {
+            callerId,
+            callerName,
+            callerAvatar,
+            offer
+        });
+    });
+
+    // Accept a call
+    socket.on("call:accept", ({ callerId, receiverId, answer }) => {
+        console.log(`Call accepted by ${receiverId}`);
+        
+        // Update call status
+        if (activeCalls.has(callerId)) {
+            activeCalls.get(callerId).status = 'active';
+        }
+        
+        // Send answer back to caller
+        socket.to(callerId).emit("call:accepted", {
+            receiverId,
+            answer
+        });
+    });
+
+    // Reject a call
+    socket.on("call:reject", ({ callerId, receiverId, reason }) => {
+        console.log(`Call rejected by ${receiverId}`);
+        
+        // Remove from active calls
+        activeCalls.delete(callerId);
+        
+        // Notify caller about rejection
+        socket.to(callerId).emit("call:rejected", {
+            receiverId,
+            reason: reason || "Call rejected"
+        });
+    });
+
+    // End a call
+    socket.on("call:end", ({ callerId, receiverId, duration }) => {
+        console.log(`Call ended between ${callerId} and ${receiverId}`);
+        
+        // Remove from active calls
+        activeCalls.delete(callerId);
+        activeCalls.delete(receiverId);
+        
+        // Notify both parties
+        socket.to(receiverId).emit("call:ended", { 
+            callerId,
+            duration 
+        });
+        socket.to(callerId).emit("call:ended", { 
+            receiverId,
+            duration 
+        });
+    });
+
+    // WebRTC Offer (for renegotiation or initial setup)
+    socket.on("webrtc:offer", ({ from, to, offer }) => {
+        console.log(`WebRTC offer from ${from} to ${to}`);
+        socket.to(to).emit("webrtc:offer", { from, offer });
+    });
+
+    // WebRTC Answer
+    socket.on("webrtc:answer", ({ from, to, answer }) => {
+        console.log(`WebRTC answer from ${from} to ${to}`);
+        socket.to(to).emit("webrtc:answer", { from, answer });
+    });
+
+    // ICE Candidate Exchange
+    socket.on("webrtc:ice-candidate", ({ from, to, candidate }) => {
+        console.log(`ICE candidate from ${from} to ${to}`);
+        socket.to(to).emit("webrtc:ice-candidate", { from, candidate });
+    });
+
+    // Call busy (receiver is already in another call)
+    socket.on("call:busy", ({ callerId, receiverId }) => {
+        console.log(`${receiverId} is busy`);
+        
+        activeCalls.delete(callerId);
+        
+        socket.to(callerId).emit("call:busy", {
+            receiverId,
+            message: "User is currently busy"
+        });
+    });
+
+    // ==================== END VOICE CALL EVENTS ====================
 
     socket.on("disconnect", () => {
         console.log("User disconnected from socket.io");
+        
+        // Clean up any active calls for this user
+        for (const [callerId, callData] of activeCalls.entries()) {
+            if (socket.id === callerId || socket.id === callData.receiverId) {
+                // Notify the other party
+                const otherUserId = socket.id === callerId ? callData.receiverId : callerId;
+                io.to(otherUserId).emit("call:ended", {
+                    reason: "User disconnected"
+                });
+                activeCalls.delete(callerId);
+            }
+        }
     });
 })
 
 // middlewares
-app.use(express.json());       // accepting this size of amount of json data here
+app.use(express.json());
 app.use(express.urlencoded({
     extended:true,
     limit: "16kb"
@@ -79,15 +196,15 @@ app.use(cookieParser())
 app.use(cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true
-})) // if cors is requested for backend to deliver the data
-
+}))
 
 // routes declaration
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/admin", adminRouter)
 app.use("/api/v1/messages", messageRouter)
 app.use("/api/v1/chats", chatRouter)
-app.use("/api/v1/notifications", notificationRouter) // NEW: Add notification routes
+app.use("/api/v1/notifications", notificationRouter)
+app.use("/api/v1/calls", callRouter) // NEW: Add call routes
 
 app.get("/", (req, res) => res.send(`Server running on port`));
 

@@ -51,18 +51,6 @@ const accessChat = asyncHandler(async (req, res) => {
 });
 
 const fetchChats = asyncHandler(async (req, res) => {
-    // Chat.find({ users: { $elemMatch: { $eq: req.user._id } } })
-    //     .populate("users", "-password")
-    //     .populate("groupAdmin", "-password")
-    //     .populate("latestMessage")
-    //     .sort({ updatedAt: -1 })
-    //     .then(async (result) => {
-    //         result = await User.populate(result, {
-    //             path: "latestMessage.sender",
-    //             select: "username avatar email"
-    //         });
-    //         res.status(200).json(new ApiResponse(200, result, "all chats fetched successfully!"))
-  //     })
     try {
     // Find chats where logged-in user is in the users array
     let chats = await Chat.find({ users: { $elemMatch: { $eq: req.user._id } } })
@@ -164,7 +152,73 @@ const deleteChat = asyncHandler(async (req, res) => {
   }
 
   return res.status(200).json(new ApiResponse(200, {}, "chat deleted successfully!"))
+});
 
+// NEW: Clear Chat Function
+const clearChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.params;
+  
+  try {
+    // Check if chat exists
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json(new ApiError(404, {}, "Chat not found"));
+    }
+
+    // Verify user is part of the chat
+    const isUserInChat = chat.users.some(
+      user => user.toString() === req.user._id.toString()
+    );
+
+    if (!isUserInChat) {
+      return res.status(403).json(
+        new ApiError(403, {}, "You are not authorized to clear this chat")
+      );
+    }
+
+    // Get all messages for this chat that have attachments
+    const messagesWithAttachments = await Message.find({
+      chat: chatId,
+      attachments: { $exists: true, $ne: [] }
+    });
+
+    // Delete all attachments from Cloudinary
+    for (const message of messagesWithAttachments) {
+      if (message.attachments && message.attachments.length > 0) {
+        for (const attachment of message.attachments) {
+          if (attachment.publicId) {
+            try {
+              await DeleteOnCloudinary(attachment.publicId);
+              console.log(`Deleted attachment: ${attachment.publicId}`);
+            } catch (error) {
+              console.error(`Failed to delete attachment: ${attachment.publicId}`, error);
+            }
+          }
+        }
+      }
+    }
+
+    // Delete all messages in the chat
+    const result = await Message.deleteMany({ chat: chatId });
+
+    // Update chat's latestMessage to null
+    await Chat.findByIdAndUpdate(chatId, {
+      latestMessage: null
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200, 
+        { deletedCount: result.deletedCount }, 
+        `Chat cleared successfully! ${result.deletedCount} message(s) deleted.`
+      )
+    );
+  } catch (error) {
+    console.error("Error clearing chat:", error);
+    return res.status(500).json(
+      new ApiError(500, {}, "Failed to clear chat")
+    );
+  }
 });
 
 export {
@@ -173,6 +227,7 @@ export {
     createGroupChats,
     renameGroup,
     addToGroup,
-  removeFromGroup,
-  deleteChat
+    removeFromGroup,
+    deleteChat,
+    clearChat  // EXPORT NEW FUNCTION
 };

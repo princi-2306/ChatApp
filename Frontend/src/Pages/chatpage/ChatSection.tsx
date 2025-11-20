@@ -67,6 +67,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const addNotification = useNotificationStore((state) => state.addNotification);
   const incrementUnreadForChat = useNotificationStore((state) => state.incrementUnreadForChat);
   const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
+  
   const fetchUnreadCount = async () => {
     try {
       const config = {
@@ -246,6 +247,42 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
+  // NEW: Clear Chat Function
+  const handleClearChat = async () => {
+    if (!currentChat?._id) {
+      toast.error("No chat selected!");
+      return;
+    }
+
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      };
+
+      const { data } = await axios.delete(
+        `http://localhost:8000/api/v1/chats/clear-chat/${currentChat._id}`,
+        config
+      );
+
+      // Clear messages from state
+      setMessages([]);
+      
+      // Clear search query and filtered messages
+      setSearchQuery("");
+      setFilteredMessages([]);
+
+      toast.success(data.message || "Chat cleared successfully!");
+    } catch (error: any) {
+      console.error("Error clearing chat:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to clear chat. Please try again."
+      );
+      throw error;
+    }
+  };
+
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     
@@ -314,6 +351,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         isSearching={searchQuery.length > 0}
         searchQuery={searchQuery}
         onViewProfile={() => setShowProfileModal(true)}
+        onClearChat={handleClearChat}
       />
 
       <MessageList

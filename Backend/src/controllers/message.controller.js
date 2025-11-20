@@ -3,27 +3,22 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { Message } from "../models/Message.model.js";
 import { User } from "../models/User.model.js";
-import {
-    DeleteOnCloudinary,
-    UploadOnCloudinary
-} from "../utils/Cloudinary.js";
+import { UploadOnCloudinary } from "../utils/Cloudinary.js";
 import mongoose from "mongoose";
-// import { io } from "../app.js"; // Import the io instance
 import { Chat } from "../models/ChatModel.model.js";
+import { Notification } from "../models/Notification.model.js";
+import { io } from "../app.js"; // Import io instance
 
-//---------------- Get users for sidebar ----------------
 const getUserForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
     if (!userId) throw new ApiError(401, "Unauthorized: No user found in request");
 
-    // exclude current user
     const filteredUsers = await User.find({ _id: { $ne: userId } }).select("-password");
 
     if (!filteredUsers.length) {
         return res.status(200).json(new ApiResponse(200, { filteredUsers: [], unseenMessages: {} }, "No other users found"));
     }
 
-    // unseen messages count per user
     const unseenMessages = {};
     await Promise.all(
         filteredUsers.map(async (user) => {
@@ -41,35 +36,14 @@ const getUserForSidebar = asyncHandler(async (req, res) => {
     );
 });
 
-// ---------------- Get all messages with a user ----------------
 const getMessages = asyncHandler(async (req, res) => {
-    // const { id: selectedUserId } = req.params;
-    // const myId = req.user?._id;
-
-    // if (!mongoose.Types.ObjectId.isValid(selectedUserId)) {
-    //     throw new ApiError(400, "Invalid user ID format");
-    // }
-
-    // const messages = await Message.find({
-    //     $or: [
-    //         { senderId: myId, reciverId: selectedUserId },
-    //         { senderId: selectedUserId, reciverId: myId }
-    //     ]
-    // }).sort({ createdAt: 1 });
-
-    // // mark unseen as seen
-    // await Message.updateMany(
-    //     { senderId: selectedUserId, reciverId: myId, seen: false },
-    //     { $set: { seen: true } }
-    // );
     const message = await Message.find({ chat: req.params.chatId })
         .populate("sender", "username avatar email")
-        .populate("chat")
+        .populate("chat");
 
     return res.status(200).json(new ApiResponse(200, message, "Messages fetched successfully"));
 });
 
-// ---------------- Mark message as seen ----------------
 const markMessagesAsSeen = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user?._id;
@@ -95,79 +69,155 @@ const markMessagesAsSeen = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, message: "Message marked as seen" });
 });
 
-// ---------------- Send message ----------------
-const sendMessage = asyncHandler(async (req, res) => {
-    // const { text, image } = req.body;
-    // const receiverId = req.params.id;
-    // const senderId = req.user?._id;
-
-    // if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-    //     throw new ApiError(400, "Invalid receiver ID format");
-    // }
-
-    // if (!text && !image) {
-    //     throw new ApiError(400, "Message cannot be empty");
-    // }
-
-    // let imageUrl = null;
-    // if (image) {
-    //     try {
-    //         const uploadResult = await UploadOnCloudinary(image);
-    //         imageUrl = uploadResult?.secure_url || null;
-    //     } catch (err) {
-    //         throw new ApiError(500, "Failed to upload image");
-    //     }
-    // }
-
-    // const newMessage = await Message.create({
-    //     senderId,
-    //     reciverId: receiverId,
-    //     text,
-    //     image: imageUrl,
-    //     seen: false
-    // });
-
+// Helper function to create notifications
+const createNotificationForUsers = async (message, chat, senderId) => {
+  try {
+    const notifications = [];
     
-
-    // return res.status(201).json(
-    //     new ApiResponse(201, newMessage, "Message sent successfully")
-    // );
-
-    const { content, chatId } = req.body;
-    if (!content || !chatId) {
-        throw new ApiError(400, "message cannot be empty!")
+    // Get message preview (first 50 chars)
+    let contentPreview = message.content ? message.content.substring(0, 50) : "";
+    
+    if (!contentPreview && message.attachments && message.attachments.length > 0) {
+      const attachmentType = message.attachments[0].fileType;
+      contentPreview = `Sent ${attachmentType === 'image' ? 'an image' : 'a file'}`;
     }
+
+    // Create notification for each user in the chat except the sender
+    for (const userId of chat.users) {
+      if (userId.toString() !== senderId.toString()) {
+        const notification = await Notification.create({
+          recipient: userId,
+          sender: senderId,
+          chat: chat._id,
+          message: message._id,
+          type: chat.isGroupChat ? 'group_message' : 'new_message',
+          content: contentPreview,
+          isRead: false
+        });
+
+        notifications.push(notification);
+
+        // Emit real-time notification via Socket.io
+        io.to(userId.toString()).emit("new notification", {
+          notification: await notification.populate([
+            { path: "sender", select: "username avatar email" },
+            { path: "chat", select: "chatName isGroupChat" }
+          ]),
+          chatId: chat._id.toString()
+        });
+      }
+    }
+
+    return notifications;
+  } catch (error) {
+    console.error("Error creating notifications:", error);
+    // Don't throw error - notifications failing shouldn't stop message sending
+    return [];
+  }
+};
+
+// UPDATED: Send message with file attachments and create notifications
+const sendMessage = asyncHandler(async (req, res) => {
+    const { content, chatId } = req.body;
+    const files = req.files; // Files from multer
+
+    if (!content && (!files || files.length === 0)) {
+        throw new ApiError(400, "Message cannot be empty!");
+    }
+
+    if (!chatId) {
+        throw new ApiError(400, "Chat ID is required!");
+    }
+
+    // Check if chat exists and user is part of it
+    const chat = await Chat.findById(chatId).populate("users");
+    if (!chat) {
+        throw new ApiError(404, "Chat not found!");
+    }
+
+    const isUserInChat = chat.users.some(
+        user => user._id.toString() === req.user._id.toString()
+    );
+
+    if (!isUserInChat) {
+        throw new ApiError(403, "You are not a member of this chat!");
+    }
+
     const newMessage = {
         sender: req.user._id,
-        content: content,
-        chat : chatId,
-    }
+        content: content || "",
+        chat: chatId,
+        attachments: []
+    };
+
     try {
-      var message = await Message.create(newMessage);
-      message = await message.populate("sender", "username avatar");
-      message = await message.populate("chat");
-      message = await User.populate(message, {
-        path: "chat.users",
-        select: "username avatar email",
-      });
+        // Upload files to Cloudinary if present
+        if (files && files.length > 0) {
+            const fileBuffers = files.map(file => file.buffer);
+            
+            // Separate images and other files
+            const images = files.filter(f => f.mimetype.startsWith('image/'));
+            const documents = files.filter(f => !f.mimetype.startsWith('image/'));
+            
+            let uploadedAttachments = [];
 
-      await Chat.findByIdAndUpdate(req.body.chatId, {
-        latestMessage: message,
-      });
+            // Upload images
+            if (images.length > 0) {
+                const imageBuffers = images.map(img => img.buffer);
+                const uploadedImages = await UploadOnCloudinary(imageBuffers, "image");
+                
+                if (uploadedImages) {
+                    uploadedAttachments = uploadedImages.map((result, index) => ({
+                        url: result.secure_url,
+                        publicId: result.public_id,
+                        fileType: 'image',
+                        fileName: images[index].originalname,
+                        fileSize: images[index].size,
+                        mimeType: images[index].mimetype
+                    }));
+                }
+            }
 
-      // Emit the new message to the receiver if they are online
-    //   const receiverSocketId = userSocketMap[receiverId];
-    //   if (receiverSocketId) {
-    //     io.to(receiverSocketId).emit("newMessage", newMessage);
-    //   } else {
-    //     console.log("Receiver is offline, cannot emit message");
-    //   }
+            // Upload documents/files
+            if (documents.length > 0) {
+                const docBuffers = documents.map(doc => doc.buffer);
+                const uploadedDocs = await UploadOnCloudinary(docBuffers, "raw");
+                
+                if (uploadedDocs) {
+                    const docAttachments = uploadedDocs.map((result, index) => ({
+                        url: result.secure_url,
+                        publicId: result.public_id,
+                        fileType: 'document',
+                        fileName: documents[index].originalname,
+                        fileSize: documents[index].size,
+                        mimeType: documents[index].mimetype
+                    }));
+                    uploadedAttachments = [...uploadedAttachments, ...docAttachments];
+                }
+            }
 
-      return res
-        .status(200)
-        .json(new ApiResponse(200, message, "message sent!"));
+            newMessage.attachments = uploadedAttachments;
+        }
+
+        var message = await Message.create(newMessage);
+        message = await message.populate("sender", "username avatar");
+        message = await message.populate("chat");
+        message = await User.populate(message, {
+            path: "chat.users",
+            select: "username avatar email",
+        });
+
+        await Chat.findByIdAndUpdate(chatId, {
+            latestMessage: message,
+        });
+
+        // Create notifications for all users in the chat except sender
+        await createNotificationForUsers(message, chat, req.user._id);
+
+        return res.status(200).json(new ApiResponse(200, message, "Message sent!"));
     } catch (error) {
-        res.status(400).json(new ApiError(400, "unable to send messages"))
+        console.error("Send message error:", error);
+        throw new ApiError(400, "Unable to send message");
     }
 });
 

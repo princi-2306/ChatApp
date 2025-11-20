@@ -7,7 +7,8 @@ import {
     renameGroup,
     addToGroup,
     removeFromGroup,
-    deleteChat
+    deleteChat,
+    clearChat  // IMPORT NEW FUNCTION
 } from "../controllers/chat.controller.js";
 
 const chatRouter = Router();
@@ -18,6 +19,7 @@ chatRouter.route("/group").post(verifyJWT, createGroupChats);
 chatRouter.route("/rename").put(verifyJWT, renameGroup);
 chatRouter.route("/groupremove").put(verifyJWT, removeFromGroup);
 chatRouter.route("/groupadd").put(verifyJWT, addToGroup);
-chatRouter.route("/delete-chat/:chatId").delete(verifyJWT, deleteChat)
+chatRouter.route("/delete-chat/:chatId").delete(verifyJWT, deleteChat);
+chatRouter.route("/clear-chat/:chatId").delete(verifyJWT, clearChat);  // NEW ROUTE
 
 export default chatRouter;

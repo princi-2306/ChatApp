@@ -3,13 +3,14 @@ import Header from './Header'
 import ChatList from './ChatList'
 import ChatSection from './ChatSection';
 import useChatStore from '@/components/store/chatStore';
-const ChatPage = () => {
 
+const ChatPage = () => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024)
 
   const setCurrentChat = useChatStore((state) => state.setCurrentChat)
-  const setChats = useChatStore((state) => state.setChats)
+  const currentChat = useChatStore((state) => state.currentChat)
+
   useEffect(() => {
     const handleSize = () => {
       setIsMobileView(window.innerWidth < 1024);
@@ -22,12 +23,20 @@ const ChatPage = () => {
   const handleChatSelect = (chat) => {
     setSelectedChat(chat)
     setCurrentChat(chat);
-    setChats(chat)
   }
 
   const handleBackToChatList = () => {
     setSelectedChat(null)
+    setCurrentChat(null)
   }
+
+  // Sync selectedChat with currentChat from store
+  // This allows notifications to change the active chat
+  useEffect(() => {
+    if (currentChat && currentChat._id !== selectedChat?._id) {
+      setSelectedChat(currentChat);
+    }
+  }, [currentChat]);
   
   return (
     <div className="flex flex-col h-screen ">

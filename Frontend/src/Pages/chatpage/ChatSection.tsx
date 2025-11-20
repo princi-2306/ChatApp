@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 import userPost from "@/components/store/userStore";
 import useChatStore from "@/components/store/chatStore";
+import useNotificationStore from "@/components/store/notificationStore";
 import { Chat } from "@/components/store/chatStore";
 import { User } from "@/components/store/userStore";
 import axios from "axios";
@@ -61,12 +62,36 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = userPost((state) => state.currentUser);
   const currentChat = useChatStore((state) => state.currentChat);
+  
+  // Notification store
+  const addNotification = useNotificationStore((state) => state.addNotification);
+  const incrementUnreadForChat = useNotificationStore((state) => state.incrementUnreadForChat);
+  const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
+  const fetchUnreadCount = async () => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      };
+
+      const response = await axios.get(
+        "http://localhost:8000/api/v1/notifications/unread-count",
+        config
+      );
+
+      setUnreadCount(response.data.data.unreadCount);
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+    }
+  };
 
   // Initialize socket
   useEffect(() => {
     socket = io(ENDPOINT);
     socket.emit("setup", currentUser);
     socket.on("connected", () => setSocketConnected(true));
+    
     socket.on("typing", ({ userId }) => {
       if (userId !== currentUser?._id) {
         setIsTyping(true);
@@ -78,7 +103,39 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         setIsTyping(false);
       }
     });
-  });
+
+    // Listen for new notifications
+    socket.on("new notification", ({ notification, chatId }) => {
+      console.log("New notification received:", notification);
+      
+      // Add to notification store
+      addNotification(notification);
+      
+      // Increment unread count for this chat
+      incrementUnreadForChat(
+        chatId,
+        notification.chat.chatName,
+        notification.chat.isGroupChat
+      );
+      
+      // Fetch updated unread count
+      fetchUnreadCount();
+      
+      // Show toast notification if not in the current chat
+      if (!currentChatCompare || currentChatCompare._id !== chatId) {
+        toast.info(`New message from ${notification.sender.username}`, {
+          description: notification.content,
+          duration: 3000,
+        });
+      }
+    });
+
+    return () => {
+      socket.off("typing");
+      socket.off("stop typing");
+      socket.off("new notification");
+    };
+  }, [currentUser]);
 
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat
@@ -219,12 +276,18 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         !currentChatCompare ||
         currentChatCompare._id !== newMessageRecieved.chat._id
       ) {
-        // Notification logic here
+        // Message is for a different chat - notification will be handled by socket listener
+        console.log("Message received for different chat");
       } else {
-        setMessages([...messages, newMessageRecieved]);
+        // Message is for current chat - add it to messages
+        setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
       }
     });
-  });
+
+    return () => {
+      socket.off("message recieved");
+    };
+  }, []);
 
   const handleEmoji = (e: any) => {
     setNewMessage((prev) => prev + e.emoji);

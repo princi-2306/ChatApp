@@ -12,6 +12,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import useChatStore from '@/components/store/chatStore';
 import { Chat } from '@/components/store/chatStore';
+import useNotificationStore from '@/components/store/notificationStore';
 
 const ChatList = ({onChatSelect, selectedChat}) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,16 +20,25 @@ const ChatList = ({onChatSelect, selectedChat}) => {
   const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
  
-
   const currentUser = userPost((state) => state.currentUser)
   const setChats = useChatStore((state) => state.setChats)
   const chats = useChatStore((state) => state.chats)
   const deleteChats = useChatStore((state) => state.deleteChat)
   const currentChat = useChatStore((state) => state.currentChat)
+  
+  // Notification store
+  const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
+  const setUnreadPerChat = useNotificationStore((state) => state.setUnreadPerChat);
+  const clearUnreadForChat = useNotificationStore((state) => state.clearUnreadForChat);
 
-  const handleChatClick = (chat : Chat) => {
+  const handleChatClick = async (chat : Chat) => {
     onChatSelect(chat);
     markAsRead(chat._id);
+    
+    // Mark notifications as read for this chat
+    if (unreadPerChat[chat._id]) {
+      await markChatNotificationsAsRead(chat._id);
+    }
   }
  
   const filteredChats = chats.filter(chat => {
@@ -44,16 +54,38 @@ const ChatList = ({onChatSelect, selectedChat}) => {
       chat._id === id ? { ...chat, isPinned: !chat.pinned } : chat
     ));
   }
+  
   const toggleMute = (id: string) => {
     setChats(chats.map(chat =>
       chat._id === id ? { ...chat, mute: true } : chat
     ));
   }
+  
   const markAsRead = (id: string) => {
     setChats(chats.map(chat =>
       chat._id === id ? {...chat, unreadCount : 0} : chat
     ))
   }
+
+  const markChatNotificationsAsRead = async (chatId: string) => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser?.token}`
+        }
+      };
+
+      await axios.put(
+        `http://localhost:8000/api/v1/notifications/read-chat/${chatId}`,
+        {},
+        config
+      );
+
+      clearUnreadForChat(chatId);
+    } catch (error) {
+      console.error("Error marking chat notifications as read:", error);
+    }
+  };
 
   const deleteChat = async(chatId: string) => {
     try {
@@ -79,14 +111,36 @@ const ChatList = ({onChatSelect, selectedChat}) => {
       console.log(error)
     }
   }
-useEffect(() => {
-  setLoggedUser(currentUser);
-}, [currentUser]);
 
-useEffect(() => {
-  if (currentUser) fetchChats();
-}, [currentUser]);
-  
+  const fetchUnreadCounts = async () => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser?.token}`
+        }
+      };
+
+      const response = await axios.get(
+        "http://localhost:8000/api/v1/notifications/unread-per-chat",
+        config
+      );
+
+      setUnreadPerChat(response.data.data);
+    } catch (error) {
+      console.error("Error fetching unread counts:", error);
+    }
+  };
+
+  useEffect(() => {
+    setLoggedUser(currentUser);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchChats();
+      fetchUnreadCounts();
+    }
+  }, [currentUser]);
   
   const fetchChats = async () => {
     try {
@@ -106,6 +160,7 @@ useEffect(() => {
       console.log(error)
     }
   }
+  
   if (loading) return <Loader/>
 
   return (
@@ -162,11 +217,12 @@ useEffect(() => {
                     >
                       <ChatListCard
                         chat={chat}
-                        loggedUser={currentUser} // pass the logged-in user
+                        loggedUser={currentUser}
                         onPin={() => togglePin(chat._id)}
                         onMute={() => toggleMute(chat._id)}
                         onMarkAsRead={() => markAsRead(chat._id)}
                         deleteChat={() => deleteChat(chat._id)}
+                        unreadCount={unreadPerChat[chat._id]?.count || 0}
                       />
                     </div>
                   ))}
@@ -175,7 +231,6 @@ useEffect(() => {
           )}
 
           {/* All Chats */}
-
           <div className="p-2">
             {filteredChats.filter((chats) => chats.pinned !== true).length >
               0 && (
@@ -194,11 +249,12 @@ useEffect(() => {
                 >
                   <ChatListCard
                     chat={chat}
-                    loggedUser={currentUser} // pass the logged-in user
+                    loggedUser={currentUser}
                     onPin={() => togglePin(chat._id)}
                     onMute={() => toggleMute(chat._id)}
                     onMarkAsRead={() => markAsRead(chat._id)}
-                    deleteChat={()=>deleteChat(chat._id)}
+                    deleteChat={() => deleteChat(chat._id)}
+                    unreadCount={unreadPerChat[chat._id]?.count || 0}
                   />
                 </div>
               ))}

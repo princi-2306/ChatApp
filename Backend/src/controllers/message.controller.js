@@ -6,6 +6,8 @@ import { User } from "../models/User.model.js";
 import { UploadOnCloudinary } from "../utils/Cloudinary.js";
 import mongoose from "mongoose";
 import { Chat } from "../models/ChatModel.model.js";
+import { Notification } from "../models/Notification.model.js";
+import { io } from "../app.js"; // Import io instance
 
 const getUserForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
@@ -67,7 +69,54 @@ const markMessagesAsSeen = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, message: "Message marked as seen" });
 });
 
-// UPDATED: Send message with file attachments
+// Helper function to create notifications
+const createNotificationForUsers = async (message, chat, senderId) => {
+  try {
+    const notifications = [];
+    
+    // Get message preview (first 50 chars)
+    let contentPreview = message.content ? message.content.substring(0, 50) : "";
+    
+    if (!contentPreview && message.attachments && message.attachments.length > 0) {
+      const attachmentType = message.attachments[0].fileType;
+      contentPreview = `Sent ${attachmentType === 'image' ? 'an image' : 'a file'}`;
+    }
+
+    // Create notification for each user in the chat except the sender
+    for (const userId of chat.users) {
+      if (userId.toString() !== senderId.toString()) {
+        const notification = await Notification.create({
+          recipient: userId,
+          sender: senderId,
+          chat: chat._id,
+          message: message._id,
+          type: chat.isGroupChat ? 'group_message' : 'new_message',
+          content: contentPreview,
+          isRead: false
+        });
+
+        notifications.push(notification);
+
+        // Emit real-time notification via Socket.io
+        io.to(userId.toString()).emit("new notification", {
+          notification: await notification.populate([
+            { path: "sender", select: "username avatar email" },
+            { path: "chat", select: "chatName isGroupChat" }
+          ]),
+          chatId: chat._id.toString()
+        });
+      }
+    }
+
+    return notifications;
+  } catch (error) {
+    console.error("Error creating notifications:", error);
+    // Don't throw error - notifications failing shouldn't stop message sending
+    return [];
+  }
+};
+
+// UPDATED: Send message with file attachments and create notifications
 const sendMessage = asyncHandler(async (req, res) => {
     const { content, chatId } = req.body;
     const files = req.files; // Files from multer
@@ -78,6 +127,20 @@ const sendMessage = asyncHandler(async (req, res) => {
 
     if (!chatId) {
         throw new ApiError(400, "Chat ID is required!");
+    }
+
+    // Check if chat exists and user is part of it
+    const chat = await Chat.findById(chatId).populate("users");
+    if (!chat) {
+        throw new ApiError(404, "Chat not found!");
+    }
+
+    const isUserInChat = chat.users.some(
+        user => user._id.toString() === req.user._id.toString()
+    );
+
+    if (!isUserInChat) {
+        throw new ApiError(403, "You are not a member of this chat!");
     }
 
     const newMessage = {
@@ -147,6 +210,9 @@ const sendMessage = asyncHandler(async (req, res) => {
         await Chat.findByIdAndUpdate(chatId, {
             latestMessage: message,
         });
+
+        // Create notifications for all users in the chat except sender
+        await createNotificationForUsers(message, chat, req.user._id);
 
         return res.status(200).json(new ApiResponse(200, message, "Message sent!"));
     } catch (error) {

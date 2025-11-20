@@ -20,19 +20,32 @@ import {
 } from "lucide-react";
 import { AlertDialog, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import userPost from "@/components/store/userStore";
+import useChatStore from "@/components/store/chatStore";
 import { Separator } from "@/components/ui/separator";
 import ChangePassword from "./DialogBox/ChangePassword";
 import { useState } from "react";
 import ChangeAvatar from "./DialogBox/ChangeAvatar";
 import ChangeDetails from "./DialogBox/ChangeDetails";
 import SignOut from "./DialogBox/SignOut";
+import NotificationPanel from "@/components/Notifications/NotificationPanel";
 
 const Header = () => {
   const currentUser = userPost((state) => state.currentUser);
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
+  const chats = useChatStore((state) => state.chats);
+  
   const [changePassword, setChangePassowrd] = useState(false);
   const [changeAvatar, setChangeAvatar] = useState(false);
   const [changeDetails, setChangeDetails] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+
+  // Handle notification click - navigate to chat
+  const handleNotificationClick = (chatId: string) => {
+    const chat = chats.find((c) => c._id === chatId);
+    if (chat) {
+      setCurrentChat(chat);
+    }
+  };
 
   return (
     <header className="sticky z-50 top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -43,8 +56,12 @@ const Header = () => {
         </span>
       </div>
 
-      {/* User menu */}
-      <div className="ml-auto">
+      {/* Notification Bell and Settings - Right side */}
+      <div className="ml-auto flex items-center gap-2">
+        {/* Notification Panel */}
+        <NotificationPanel onNotificationClick={handleNotificationClick} />
+
+        {/* Settings Menu */}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="">
@@ -80,7 +97,7 @@ const Header = () => {
                 </AlertDialog>
               </div>
               <div>
-                <Dialog >
+                <Dialog>
                   <DialogTrigger>
                     <div className="flex gap-2 items-center">
                       <div>
@@ -92,7 +109,7 @@ const Header = () => {
                         </button>
                       </div>
                       {changePassword && (
-                        <ChangePassword onClose={()=>setChangePassowrd(false)} />
+                        <ChangePassword onClose={() => setChangePassowrd(false)} />
                       )}
                     </div>
                   </DialogTrigger>

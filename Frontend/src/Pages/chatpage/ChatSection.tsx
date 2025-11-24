@@ -3,7 +3,7 @@ import { io, Socket } from "socket.io-client";
 import userPost from "@/components/store/userStore";
 import useChatStore from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
-import useCallStore from "@/components/store/callStore"; // NEW
+import useCallStore from "@/components/store/callStore";
 import { Chat } from "@/components/store/chatStore";
 import { User } from "@/components/store/userStore";
 import axios from "axios";
@@ -17,10 +17,11 @@ import TypingIndicator from "../../components/ChatSection/TypingIndicator";
 import MessageInput from "../../components/ChatSection/MessageInput";
 import EmptyChatState from "../../components/ChatSection/EmptyChatState";
 import UserProfileModal from "../../components/ChatSection/UserProfileModal";
-import VoiceCallModal from "../../components/ChatSection/VoiceCallModal"; // NEW
-import ActiveCallModal from "../../components/ChatSection/ActiveCallModal"; // NEW
+import VoiceCallModal from "../../components/ChatSection/VoiceCallModal";
+import ActiveCallModal from "../../components/ChatSection/ActiveCallModal";
+import GroupChatDetails from "@/components/ChatSection/GroupChatDetails";
 
-// NEW: Import voice call hook
+// Import voice call hook
 import { useVoiceCall } from "../../hooks/useVoiceCall";
 
 const ENDPOINT = "http://localhost:8000";
@@ -64,17 +65,21 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  
+
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = userPost((state) => state.currentUser);
   const currentChat = useChatStore((state) => state.currentChat);
-  
+
   // Notification store
-  const addNotification = useNotificationStore((state) => state.addNotification);
-  const incrementUnreadForChat = useNotificationStore((state) => state.incrementUnreadForChat);
+  const addNotification = useNotificationStore(
+    (state) => state.addNotification
+  );
+  const incrementUnreadForChat = useNotificationStore(
+    (state) => state.incrementUnreadForChat
+  );
   const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
-  
-  // NEW: Call store
+
+  // Call store
   const { incomingCall, activeCall } = useCallStore();
 
   const fetchUnreadCount = async () => {
@@ -101,7 +106,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     socket = io(ENDPOINT);
     socket.emit("setup", currentUser);
     socket.on("connected", () => setSocketConnected(true));
-    
+
     socket.on("typing", ({ userId }) => {
       if (userId !== currentUser?._id) {
         setIsTyping(true);
@@ -117,16 +122,16 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     // Listen for new notifications
     socket.on("new notification", ({ notification, chatId }) => {
       console.log("New notification received:", notification);
-      
+
       addNotification(notification);
       incrementUnreadForChat(
         chatId,
         notification.chat.chatName,
         notification.chat.isGroupChat
       );
-      
+
       fetchUnreadCount();
-      
+
       if (!currentChatCompare || currentChatCompare._id !== chatId) {
         toast.info(`New message from ${notification.sender.username}`, {
           description: notification.content,
@@ -144,17 +149,13 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat
-      ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) || null
+      ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) ||
+        null
       : null;
 
-  // NEW: Initialize voice call hook
-  const {
-    initiateCall,
-    acceptCall,
-    rejectCall,
-    endCall,
-    toggleMute,
-  } = useVoiceCall(socket, currentUser, otherUser);
+  // Initialize voice call hook
+  const { initiateCall, acceptCall, rejectCall, endCall, toggleMute } =
+    useVoiceCall(socket, currentUser, otherUser);
 
   const typingHandler = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
@@ -209,7 +210,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
   const sendMessage = async (files?: File[]) => {
     const filesToSend = files || selectedFiles;
-    
+
     if (!newMessage.trim() && filesToSend.length === 0) {
       toast.error("Message cannot be empty!");
       return;
@@ -227,13 +228,13 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
     try {
       const formData = new FormData();
-      
+
       if (newMessage.trim()) {
         formData.append("content", newMessage);
       }
-      
+
       formData.append("chatId", currentChat._id);
-      
+
       filesToSend.forEach((file) => {
         formData.append("files", file);
       });
@@ -286,7 +287,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     } catch (error: any) {
       console.error("Error clearing chat:", error);
       toast.error(
-        error.response?.data?.message || "Failed to clear chat. Please try again."
+        error.response?.data?.message ||
+          "Failed to clear chat. Please try again."
       );
       throw error;
     }
@@ -294,21 +296,81 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    
+
     if (!query.trim()) {
       setFilteredMessages([]);
       return;
     }
-    
+
     const filtered = messages.filter((msg) => {
-      const contentMatch = msg.content.toLowerCase().includes(query.toLowerCase());
-      const attachmentMatch = msg.attachments?.some(att => 
+      const contentMatch = msg.content
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      const attachmentMatch = msg.attachments?.some((att) =>
         att.fileName.toLowerCase().includes(query.toLowerCase())
       );
       return contentMatch || attachmentMatch;
     });
-    
+
     setFilteredMessages(filtered);
+  };
+
+  // Group management functions
+  const handleEditGroup = async (group: Chat) => {
+    try {
+      // Implement edit group logic
+      console.log("Editing group:", group);
+      toast.success("Group settings updated successfully!");
+    } catch (error) {
+      toast.error("Failed to update group settings");
+      console.error("Error editing group:", error);
+    }
+  };
+
+  const handleAddMembers = async (group: Chat) => {
+    try {
+      // Implement add members logic
+      console.log("Adding members to group:", group);
+      toast.success("Members added successfully!");
+    } catch (error) {
+      toast.error("Failed to add members");
+      console.error("Error adding members:", error);
+    }
+  };
+
+  const handleLeaveGroup = async (group: Chat) => {
+    try {
+      if (!currentUser) return;
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser.token}`,
+        },
+      };
+
+      const { data } = await axios.put(
+        `http://localhost:8000/api/v1/chats/group-leave`,
+        {
+          chatId: group._id,
+          userId: currentUser._id,
+        },
+        config
+      );
+
+      toast.success("You have left the group");
+      setShowProfileModal(false);
+
+      // Optionally refresh chats list or navigate away
+      if (onBack) {
+        onBack();
+      }
+    } catch (error: any) {
+      console.error("Error leaving group:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Failed to leave group. Please try again."
+      );
+    }
   };
 
   useEffect(() => {
@@ -348,19 +410,21 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     return <EmptyChatState />;
   }
 
+  // console.log(currentChat)
   return (
     <>
       <div className="flex flex-col h-full bg-background w-full">
-        <ChatHeader 
-          otherUser={otherUser} 
-          onBack={onBack} 
+        <ChatHeader
+          currentChat={currentChat}
+          otherUser={otherUser}
+          onBack={onBack}
           formatTime={formatTime}
           onSearch={handleSearch}
           isSearching={searchQuery.length > 0}
           searchQuery={searchQuery}
           onViewProfile={() => setShowProfileModal(true)}
           onClearChat={handleClearChat}
-          onInitiateCall={initiateCall} // NEW
+          onInitiateCall={initiateCall}
         />
 
         <MessageList
@@ -386,30 +450,37 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
           setSelectedFiles={setSelectedFiles}
         />
 
-        {showProfileModal && (
-          <UserProfileModal
-            key={otherUser?._id}
-            open={showProfileModal}
-            onOpenChange={setShowProfileModal}
-            user={otherUser}
-            formatTime={formatTime}
-          />
-        )}
+        {/* Conditional Profile Modal Rendering */}
+        {showProfileModal &&
+          (currentChat.isGroupChat ? (
+            <GroupChatDetails
+              open={showProfileModal}
+              onOpenChange={setShowProfileModal}
+              group={currentChat}
+              currentUser={currentUser}
+              formatTime={formatTime}
+              onEditGroup={handleEditGroup}
+              onAddMembers={handleAddMembers}
+              onLeaveGroup={handleLeaveGroup}
+            />
+          ) : (
+            <UserProfileModal
+              key={otherUser?._id}
+              open={showProfileModal}
+              onOpenChange={setShowProfileModal}
+              user={otherUser}
+              formatTime={formatTime}
+            />
+          ))}
       </div>
 
-      {/* NEW: Voice Call Modals */}
+      {/* Voice Call Modals */}
       {incomingCall && (
-        <VoiceCallModal
-          onAccept={acceptCall}
-          onReject={rejectCall}
-        />
+        <VoiceCallModal onAccept={acceptCall} onReject={rejectCall} />
       )}
 
       {activeCall && (
-        <ActiveCallModal
-          onEndCall={endCall}
-          onToggleMute={toggleMute}
-        />
+        <ActiveCallModal onEndCall={endCall} onToggleMute={toggleMute} />
       )}
     </>
   );

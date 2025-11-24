@@ -103,6 +103,11 @@ const MessageList: React.FC<MessageListProps> = ({
                     >
                       {/* Text Content */}
                       {msg.content && (
+                        <p className="text-sm font-semibold text-zinc-500">
+                          {msg.sender?._id === currentUser?._id ? "": msg.sender.username}
+                        </p>
+                      )}
+                      {msg.content && (
                           <p className="text-sm whitespace-pre-wrap mb-2">
                             {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
                           </p>

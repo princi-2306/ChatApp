@@ -2,6 +2,7 @@ import {create} from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { User } from './userStore';
 
+
 export interface Chat {
     _id: string,
     chatName: string,
@@ -11,7 +12,8 @@ export interface Chat {
     unreadCount: number | 2 ;
     mute: boolean | false;
     pinned: boolean | false;
-      latestMessage : string
+    latestMessage: string;
+    groupAvatar: string;
 }
 
 interface ChatStore {

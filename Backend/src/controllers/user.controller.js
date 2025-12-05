@@ -322,21 +322,28 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 const allUsers = asyncHandler(async (req, res) => {
 
-    const keyword = req.query.search ? {
-        $or: [
-            { email: { $regex: req.query.search, $options: "i" } },
-            { username: { $regex: req.query.search, $options: "i" } }
-        ]
+    const { search } = req.query;
+
+    // If no search query is provided, return empty array immediately
+    if (!search || search.trim() === "") {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, [], "Please provide a search query"));
     }
-        : {};
-    
+
     const users = await User.find({
-      ...keyword,
-      _id: { $ne: req.user._id },
-    });
-    return res.status(200).json(
-        new ApiResponse(200, users, "All users fetched successfully!")
-    );
+      $or: [
+        { email: { $regex: search.trim(), $options: "i" } },
+        { username: { $regex: search.trim(), $options: "i" } },
+      ],
+      _id: { $ne: req.user._id }, // Exclude current user
+    }).select("-password"); // Exclude password field
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, users, "Search results fetched successfully!")
+      );
 });
 
 
@@ -410,53 +417,6 @@ const getUserChannelProfile = asyncHandler( async (req, res) => {
     )
 })
 
-const getWatchHistory = asyncHandler( async(req, res) => {
-    const user = await User.aggregate([
-        {
-            $match:{
-                _id: new mongoose.Types.ObjectId(req.user._id)
-            }
-        },
-        {
-            $lookup:{
-                from: "videos",
-                localField: "watchHistory",
-                foreignField: "_id",
-                as: "watchHistory",
-                pipeline: [{
-                    $lookup:{
-                        from: "user",
-                        localField: "owner",
-                        foreignField: "_id",
-                        as: "owerDetails",
-                        pipeline:[{
-                            $project:{
-                                username: 1,
-                                avatar: 1,
-                            }
-                        }]
-                    }
-                },
-                {                   // this one pipeline is only for getting the first value of the array that is aggregation object basically only for eazing the work on frontend
-                    $addFields:{
-                        owner: {
-                            $first: "$owner"
-                        }
-                    }
-                }]
-            }
-        }
-    ])
-    if(!user){
-        throw new ApiError(401, "the user not found!")
-    }
-
-    return res
-    .status(200)
-    .json(
-        new ApiResponse(200, user, "Fetched the video data successfully")
-    )
-})
 export {
     registerUser,
     loginUser,
@@ -467,6 +427,5 @@ export {
     updateAccountDetials,
     updateUserAvatar,
     getUserChannelProfile,
-    getWatchHistory,
     allUsers
 };

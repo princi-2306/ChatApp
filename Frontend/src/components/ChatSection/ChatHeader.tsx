@@ -40,6 +40,7 @@ interface ChatHeaderProps {
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ 
+  currentChat,
   otherUser, 
   onBack, 
   formatTime,
@@ -127,11 +128,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
               <Avatar className="h-10 w-10 cursor-pointer" onClick={onViewProfile}>
-                <AvatarImage src={otherUser?.avatar} alt={otherUser?.username} />
-                <AvatarFallback>{otherUser?.username?.charAt(0)}</AvatarFallback>
+                <AvatarImage src={currentChat.isGroupChat ? currentChat.groupAvatar : otherUser?.avatar} alt={otherUser?.username} />
+                <AvatarFallback>{ otherUser?.username?.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="cursor-pointer" onClick={onViewProfile}>
-                <h3 className="font-semibold">{otherUser?.username}</h3>
+                <h3 className="font-semibold">{currentChat.isGroupChat ? currentChat.chatName : otherUser?.username}</h3>
                 <p className="text-xs text-muted-foreground">
                   {otherUser?.status === "online" ? (
                     <span className="flex items-center gap-1">

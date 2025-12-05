@@ -30,20 +30,21 @@ router.route("/register").post(
 router.route("/login").post(loginUser);
 // whenever u set a middleware then just put the middleware first then put the actual function which u want to send user to like i did below.
 // u can set as much middleware as u want like this => .post(verifyJWT,secondMiddleware,thirdMiddleware,andSoOnMiddleware,logoutUser)
-router.route("/logout").post(verifyJWT,logoutUser);
+router.route("/logout").post(verifyJWT, logoutUser);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/change-password").post(verifyJWT, changeCurrentPassword);
 router.route("/update-details").patch(verifyJWT, updateAccountDetials);
-router.route("/")
-    verifyJWT,
-    upload.fields([
-        {
-            name:"avatar",
-            maxCount: 1
-        }
-    ]),
-    updateUserAvatar;
-
+router.route("/search").get(verifyJWT, allUsers);
+router.route("/update-avatar").put(
+  verifyJWT,
+  upload.fields([
+    {
+      name: "avatar",
+      maxCount: 1,
+    },
+  ]),
+  updateUserAvatar
+);
 
 export default router;

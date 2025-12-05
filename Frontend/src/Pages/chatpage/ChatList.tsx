@@ -1,78 +1,122 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom';
-import { Loader, MessageCircleMore, Search, UserPlus, X } from "lucide-react";
-import { Button } from '@/components/ui/button';
-import ChatListCard from '../Cards/ChatListCard';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import React, { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Loader,
+  MessageCircleMore,
+  Search,
+  UserPlus,
+  X,
+  Users,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import ChatListCard from "../Cards/ChatListCard";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import AddUser from '../Cards/AddUser';
-import userPost, { User } from '@/components/store/userStore';
-import axios from 'axios';
-import { toast } from 'sonner';
-import useChatStore from '@/components/store/chatStore';
-import { Chat } from '@/components/store/chatStore';
-import useNotificationStore from '@/components/store/notificationStore';
+import AddUser from "../Cards/AddUser";
+import CreateGroup from "../Cards/CreateGroup";
+import userPost, { User } from "@/components/store/userStore";
+import axios from "axios";
+import { toast } from "sonner";
+import useChatStore from "@/components/store/chatStore";
+import { Chat } from "@/components/store/chatStore";
+import useNotificationStore from "@/components/store/notificationStore";
 
-const ChatList = ({onChatSelect, selectedChat}) => {
+const ChatList = ({ onChatSelect, selectedChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
- 
-  const currentUser = userPost((state) => state.currentUser)
-  const setChats = useChatStore((state) => state.setChats)
-  const chats = useChatStore((state) => state.chats)
-  const deleteChats = useChatStore((state) => state.deleteChat)
-  const currentChat = useChatStore((state) => state.currentChat)
-  
+
+  const currentUser = userPost((state) => state.currentUser);
+  const setChats = useChatStore((state) => state.setChats);
+  const chats = useChatStore((state) => state.chats);
+  const deleteChats = useChatStore((state) => state.deleteChat);
+  const currentChat = useChatStore((state) => state.currentChat);
+  const updateChat = useChatStore((state) => state.updateChat);
+
   // Notification store
   const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
-  const setUnreadPerChat = useNotificationStore((state) => state.setUnreadPerChat);
-  const clearUnreadForChat = useNotificationStore((state) => state.clearUnreadForChat);
+  const setUnreadPerChat = useNotificationStore(
+    (state) => state.setUnreadPerChat
+  );
+  const clearUnreadForChat = useNotificationStore(
+    (state) => state.clearUnreadForChat
+  );
 
-  const handleChatClick = async (chat : Chat) => {
+  const handleChatClick = async (chat: Chat) => {
     onChatSelect(chat);
     markAsRead(chat._id);
-    
+
     // Mark notifications as read for this chat
     if (unreadPerChat[chat._id]) {
       await markChatNotificationsAsRead(chat._id);
     }
-  }
- 
-  const filteredChats = chats.filter(chat => {
+  };
+
+  const filteredChats = chats.filter((chat) => {
     const username = chat.users?.[0]?.username || "";
+    const chatName = chat.chatName || "";
     return (
       username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.chatName?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+      chatName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   });
 
-  const togglePin = (id: string) => {
-    setChats(chats.map(chat =>
-      chat._id === id ? { ...chat, isPinned: !chat.pinned } : chat
-    ));
-  }
-  
-  const toggleMute = (id: string) => {
-    setChats(chats.map(chat =>
-      chat._id === id ? { ...chat, mute: true } : chat
-    ));
-  }
-  
-  const markAsRead = (id: string) => {
-    setChats(chats.map(chat =>
-      chat._id === id ? {...chat, unreadCount : 0} : chat
-    ))
-  }
+  // UPDATED: Proper togglePin function with backend integration
+  const togglePin = async (chatId: string) => {
+    try {
+      const token = localStorage.getItem("tokens");
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+
+      const response = await axios.put(
+        "http://localhost:8000/api/v1/chats/toggle-pin",
+        { chatId },
+        config
+      );
+
+      const { chat, action } = response.data.data;
+
+      // Update the chat in the store
+      updateChat(chat);
+
+      toast.success(`Chat ${action} successfully!`);
+    } catch (error: any) {
+      console.error("Error toggling pin:", error);
+      toast.error(error.response?.data?.message || "Failed to toggle pin");
+    }
+  };
+
+  const toggleMute = async (chatId: string) => {
+    try {
+      const updatedChats = chats.map((chat) =>
+        chat._id === chatId ? { ...chat, mute: !chat.mute } : chat
+      );
+      setChats(updatedChats);
+    } catch (error) {
+      console.error("Error toggling mute:", error);
+    }
+  };
+
+  const markAsRead = (chatId: string) => {
+    setChats(
+      chats.map((chat) =>
+        chat._id === chatId ? { ...chat, unreadCount: 0 } : chat
+      )
+    );
+  };
 
   const markChatNotificationsAsRead = async (chatId: string) => {
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${currentUser?.token}`
-        }
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
       };
 
       await axios.put(
@@ -87,37 +131,66 @@ const ChatList = ({onChatSelect, selectedChat}) => {
     }
   };
 
-  const deleteChat = async(chatId: string) => {
+  const deleteChat = async (chatId: string) => {
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${currentUser?.token}`
-        }
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
       };
 
       setLoading(true);
 
-      const response = await axios.delete(`http://localhost:8000/api/v1/chats/delete-chat/${chatId}`, config)
+      const response = await axios.delete(
+        `http://localhost:8000/api/v1/chats/delete-chat/${chatId}`,
+        config
+      );
+
       deleteChats(chatId);
 
       if (currentChat?._id === chatId) {
         onChatSelect(null); // if user in chat-section when chat gets deleted
       }
 
-      console.log("chat deleted : ", response.data)
+      console.log("chat deleted : ", response.data);
+      toast.success("Chat deleted successfully!");
       setLoading(false);
     } catch (error) {
-      toast.error("chats cannot be deleted");
-      console.log(error)
+      toast.error("Chat cannot be deleted");
+      console.log(error);
     }
-  }
+  };
+
+  // Clear chat messages (without deleting the chat)
+  const clearChat = async (chatId: string) => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      };
+
+      const response = await axios.delete(
+        `http://localhost:8000/api/v1/chats/clear-chat/${chatId}`,
+        config
+      );
+
+      // Update the chat to clear latestMessage
+      // updateChat();
+
+      toast.success(response.data.message || "Chat cleared successfully!");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to clear chat");
+      console.error("Error clearing chat:", error);
+    }
+  };
 
   const fetchUnreadCounts = async () => {
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${currentUser?.token}`
-        }
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
       };
 
       const response = await axios.get(
@@ -141,27 +214,27 @@ const ChatList = ({onChatSelect, selectedChat}) => {
       fetchUnreadCounts();
     }
   }, [currentUser]);
-  
+
   const fetchChats = async () => {
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${currentUser?.token}`
-        }
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
       };
 
-      const reponse = await axios.get(
-        "http://localhost:8000/api/v1/chats/fetch-chats", config
+      const response = await axios.get(
+        "http://localhost:8000/api/v1/chats/fetch-chats",
+        config
       );
-      setChats(reponse.data.data);
-      // console.log(reponse.data.data)
+      setChats(response.data.data);
     } catch (error) {
-      toast.error("unable to find chats")
-      console.log(error)
+      toast.error("Unable to fetch chats");
+      console.log(error);
     }
-  }
-  
-  if (loading) return <Loader/>
+  };
+
+  if (loading) return <Loader />;
 
   return (
     <div className="flex flex-col h-full border-r bg-muted/40">
@@ -170,13 +243,23 @@ const ChatList = ({onChatSelect, selectedChat}) => {
         {/* Chats Title */}
         <div className="flex items-center justify-between p-4">
           <h2 className="text-xl font-semibold">Chats</h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowAddPanel(true)}
-          >
-            <UserPlus />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowCreateGroup(true)}
+              title="Create Group"
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowAddPanel(true)}
+            >
+              <UserPlus />
+            </Button>
+          </div>
         </div>
 
         {/* Sticky Search Bar */}
@@ -210,7 +293,7 @@ const ChatList = ({onChatSelect, selectedChat}) => {
                       key={chat._id}
                       onClick={() => handleChatClick(chat)}
                       className={
-                        selectedChat?.id === chat._id
+                        selectedChat?._id === chat._id
                           ? "bg-accent rounded-lg"
                           : ""
                       }
@@ -222,6 +305,7 @@ const ChatList = ({onChatSelect, selectedChat}) => {
                         onMute={() => toggleMute(chat._id)}
                         onMarkAsRead={() => markAsRead(chat._id)}
                         deleteChat={() => deleteChat(chat._id)}
+                        clearChat={() => clearChat(chat._id)}
                         unreadCount={unreadPerChat[chat._id]?.count || 0}
                       />
                     </div>
@@ -232,39 +316,48 @@ const ChatList = ({onChatSelect, selectedChat}) => {
 
           {/* All Chats */}
           <div className="p-2">
-            {filteredChats.filter((chats) => chats.pinned !== true).length >
-              0 && (
+            {filteredChats.filter((chat) => !chat.pinned).length > 0 && (
               <h3 className="text-xs font-medium text-muted-foreground px-2 py-1">
                 All Chats
               </h3>
             )}
             <div className="space-y-1">
-              {filteredChats.map((chat) => (
-                <div
-                  key={chat._id}
-                  onClick={() => handleChatClick(chat)}
-                  className={
-                    selectedChat?.id === chat._id ? "bg-accent rounded-lg" : ""
-                  }
-                >
-                  <ChatListCard
-                    chat={chat}
-                    loggedUser={currentUser}
-                    onPin={() => togglePin(chat._id)}
-                    onMute={() => toggleMute(chat._id)}
-                    onMarkAsRead={() => markAsRead(chat._id)}
-                    deleteChat={() => deleteChat(chat._id)}
-                    unreadCount={unreadPerChat[chat._id]?.count || 0}
-                  />
-                </div>
-              ))}
+              {filteredChats
+                .filter((chat) => !chat.pinned)
+                .map((chat) => (
+                  <div
+                    key={chat._id}
+                    onClick={() => handleChatClick(chat)}
+                    className={
+                      selectedChat?._id === chat._id
+                        ? "bg-accent rounded-lg"
+                        : ""
+                    }
+                  >
+                    <ChatListCard
+                      chat={chat}
+                      loggedUser={currentUser}
+                      onPin={() => togglePin(chat._id)}
+                      onMute={() => toggleMute(chat._id)}
+                      onMarkAsRead={() => markAsRead(chat._id)}
+                      deleteChat={() => deleteChat(chat._id)}
+                      clearChat={() => clearChat(chat._id)}
+                      unreadCount={unreadPerChat[chat._id]?.count || 0}
+                    />
+                  </div>
+                ))}
             </div>
           </div>
         </ScrollArea>
       </div>
+
+      {/* Modals */}
       {showAddPanel && <AddUser onClose={() => setShowAddPanel(false)} />}
+      {showCreateGroup && (
+        <CreateGroup onClose={() => setShowCreateGroup(false)} />
+      )}
     </div>
   );
-}
+};
 
-export default ChatList
+export default ChatList;

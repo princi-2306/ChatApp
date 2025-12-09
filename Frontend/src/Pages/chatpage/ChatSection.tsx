@@ -20,6 +20,8 @@ import UserProfileModal from "../../components/ChatSection/UserProfileModal";
 import VoiceCallModal from "../../components/ChatSection/VoiceCallModal";
 import ActiveCallModal from "../../components/ChatSection/ActiveCallModal";
 import GroupChatDetails from "@/components/ChatSection/GroupChatDetails";
+import DeleteChatModal from "@/components/ChatSection/DeleteChatModal";
+
 
 // Import voice call hook
 import { useVoiceCall } from "../../hooks/useVoiceCall";
@@ -65,10 +67,42 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+
+  const deleteChat = useChatStore((state) => state.deleteChat);
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentUser = userPost((state) => state.currentUser);
   const currentChat = useChatStore((state) => state.currentChat);
+
+
+  const handleDeleteChatClick = () => {
+  setShowDeleteChatModal(true);
+};
+
+const handleChatDeleted = () => {
+  // Remove chat from store
+  if (currentChat) {
+    deleteChat(currentChat._id);
+  }
+  
+  // Close modal
+  setShowDeleteChatModal(false);
+  
+  // Navigate back to chat list
+  if (onBack) {
+    onBack();
+  }
+  
+  // Optional: Emit socket event for real-time updates
+  if (socket && socketConnected && currentChat) {
+    socket.emit("chat deleted", {
+      chatId: currentChat._id,
+      deletedBy: currentUser?._id,
+      isGroupChat: currentChat.isGroupChat,
+    });
+  }
+};
 
   // Notification store
   const addNotification = useNotificationStore(
@@ -139,6 +173,37 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       }
     });
 
+    // Listen for chat/group deletion by others
+  socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
+    if (deletedBy !== currentUser?._id) {
+      // Remove from store
+      deleteChat(chatId);
+      
+      // Show notification
+      toast.info(
+        isGroupChat 
+          ? "Group was deleted by admin" 
+          : "Chat was deleted by the other user"
+      );
+      
+      // Navigate if viewing this chat
+      if (currentChat?._id === chatId && onBack) {
+        onBack();
+      }
+    }
+  });
+
+  socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
+    if (deletedBy !== currentUser?._id) {
+      deleteChat(groupId);
+      toast.info(`Group "${groupName}" was deleted by admin`);
+      
+      if (currentChat?._id === groupId && onBack) {
+        onBack();
+      }
+    }
+  });
+
     // Listen for new notifications
     socket.on("new notification", ({ notification, chatId }) => {
       console.log("New notification received:", notification);
@@ -164,6 +229,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       socket.off("typing");
       socket.off("stop typing");
       socket.off("new notification");
+      socket.off("chat deleted");
+      socket.off("group deleted");
     };
   }, [currentUser]);
 
@@ -359,39 +426,77 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   };
 
   const handleLeaveGroup = async (group: Chat) => {
-    try {
-      if (!currentUser) return;
+  try {
+    if (!currentUser) return;
 
-      const config = {
-        headers: {
-          Authorization: `Bearer ${currentUser.token}`,
-        },
-      };
+    // Check if user is admin
+    const isAdmin = group.groupAdmin._id === currentUser._id;
 
-      const { data } = await axios.put(
-        `http://localhost:8000/api/v1/chats/group-leave`,
-        {
-          chatId: group._id,
-          userId: currentUser._id,
-        },
-        config
-      );
-
-      toast.success("You have left the group");
-      setShowProfileModal(false);
-
-      // Optionally refresh chats list or navigate away
-      if (onBack) {
-        onBack();
-      }
-    } catch (error: any) {
-      console.error("Error leaving group:", error);
-      toast.error(
-        error.response?.data?.message ||
-        "Failed to leave group. Please try again."
-      );
+    // If admin, they should use delete instead
+    if (isAdmin) {
+      toast.error("As admin, please use 'Delete Group' option from group settings");
+      return;
     }
-  };
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${currentUser.token}`,
+      },
+    };
+
+    // Call leave group API
+    const { data } = await axios.put(
+      `http://localhost:8000/api/v1/chats/group-leave`,
+      {
+        chatId: group._id,
+        userId: currentUser._id,
+      },
+      config
+    );
+
+    // Remove from store
+    deleteChat(group._id);
+
+    toast.success("You have left the group");
+    setShowProfileModal(false);
+
+    // Navigate back
+    if (onBack) {
+      onBack();
+    }
+  } catch (error: any) {
+    console.error("Error leaving group:", error);
+    toast.error(
+      error.response?.data?.message ||
+        "Failed to leave group. Please try again."
+    );
+  }
+};
+
+const handleGroupDeleted = () => {
+  // Remove from store
+  if (currentChat) {
+    deleteChat(currentChat._id);
+  }
+  
+  // Close profile modal
+  setShowProfileModal(false);
+  
+  // Navigate back
+  if (onBack) {
+    onBack();
+  }
+  
+  // Optional: Socket event
+  if (socket && socketConnected && currentChat) {
+    socket.emit("group deleted", {
+      groupId: currentChat._id,
+      deletedBy: currentUser?._id,
+      groupName: currentChat.chatName,
+    });
+  }
+};
+
 
   useEffect(() => {
     fetchMessages();
@@ -432,79 +537,90 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
   // console.log(currentChat)
   return (
-    <>
-      <div className="flex flex-col h-full bg-background w-full">
-        <ChatHeader
-          currentChat={currentChat}
+  <>
+    <div className="flex flex-col h-full bg-background w-full">
+      <ChatHeader
+        currentChat={currentChat}
+        otherUser={otherUser}
+        onBack={onBack}
+        formatTime={formatTime}
+        onSearch={handleSearch}
+        isSearching={searchQuery.length > 0}
+        searchQuery={searchQuery}
+        onViewProfile={() => setShowProfileModal(true)}
+        onClearChat={handleClearChat}
+        onInitiateCall={initiateCall}
+        onDeleteChat={handleDeleteChatClick} // NEW
+      />
+
+      <MessageList
+        messages={searchQuery ? filteredMessages : messages}
+        loading={loading}
+        currentUser={currentUser}
+        formatTime={formatTime}
+        searchQuery={searchQuery}
+      />
+
+      <TypingIndicator isTyping={isTyping} />
+
+      <MessageInput
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        sendMessage={sendMessage}
+        typingHandler={typingHandler}
+        open={open}
+        setOpen={setOpen}
+        handleEmoji={handleEmoji}
+        isMobile={isMobile}
+        selectedFiles={selectedFiles}
+        setSelectedFiles={setSelectedFiles}
+      />
+
+      {showProfileModal &&
+        (currentChat.isGroupChat ? (
+          <GroupChatDetails
+            open={showProfileModal}
+            onOpenChange={setShowProfileModal}
+            group={currentChat}
+            currentUser={currentUser}
+            formatTime={formatTime}
+            onEditGroup={handleEditGroup}
+            onAddMembers={handleAddMembers}
+            onLeaveGroup={handleLeaveGroup}
+            onGroupUpdate={handleGroupUpdate}
+          />
+        ) : (
+          <UserProfileModal
+            key={otherUser?._id}
+            open={showProfileModal}
+            onOpenChange={setShowProfileModal}
+            user={otherUser}
+            formatTime={formatTime}
+          />
+        ))}
+
+      {!currentChat?.isGroupChat && (
+        <DeleteChatModal
+          open={showDeleteChatModal}
+          onOpenChange={setShowDeleteChatModal}
+          chat={currentChat}
           otherUser={otherUser}
-          onBack={onBack}
-          formatTime={formatTime}
-          onSearch={handleSearch}
-          isSearching={searchQuery.length > 0}
-          searchQuery={searchQuery}
-          onViewProfile={() => setShowProfileModal(true)}
-          onClearChat={handleClearChat}
-          onInitiateCall={initiateCall}
-        />
-
-        <MessageList
-          messages={searchQuery ? filteredMessages : messages}
-          loading={loading}
           currentUser={currentUser}
-          formatTime={formatTime}
-          searchQuery={searchQuery}
+          onChatDeleted={handleChatDeleted}
         />
-
-        <TypingIndicator isTyping={isTyping} />
-
-        <MessageInput
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          sendMessage={sendMessage}
-          typingHandler={typingHandler}
-          open={open}
-          setOpen={setOpen}
-          handleEmoji={handleEmoji}
-          isMobile={isMobile}
-          selectedFiles={selectedFiles}
-          setSelectedFiles={setSelectedFiles}
-        />
-
-        {/* Conditional Profile Modal Rendering */}
-        {showProfileModal &&
-          (currentChat.isGroupChat ? (
-            <GroupChatDetails
-              open={showProfileModal}
-              onOpenChange={setShowProfileModal}
-              group={currentChat}
-              currentUser={currentUser}
-              formatTime={formatTime}
-              onEditGroup={handleEditGroup}
-              onAddMembers={handleAddMembers}
-              onLeaveGroup={handleLeaveGroup}
-              onGroupUpdate={handleGroupUpdate} // ADD THIS PROP
-            />
-          ) : (
-            <UserProfileModal
-              key={otherUser?._id}
-              open={showProfileModal}
-              onOpenChange={setShowProfileModal}
-              user={otherUser}
-              formatTime={formatTime}
-            />
-          ))}
-      </div>
-
-      {/* Voice Call Modals */}
-      {incomingCall && (
-        <VoiceCallModal onAccept={acceptCall} onReject={rejectCall} />
       )}
+    </div>
 
-      {activeCall && (
-        <ActiveCallModal onEndCall={endCall} onToggleMute={toggleMute} />
-      )}
-    </>
-  );
+    {incomingCall && (
+      <VoiceCallModal onAccept={acceptCall} onReject={rejectCall} />
+    )}
+
+    {activeCall && (
+      <ActiveCallModal onEndCall={endCall} onToggleMute={toggleMute} />
+    )}
+  </>
+);
+
 };
 
 export default ChatSection;

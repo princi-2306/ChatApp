@@ -373,14 +373,106 @@ const LeaveGroup = asyncHandler(async (req, res) => {
 
 const deleteChat = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
-  const deleteChat = await Chat.findByIdAndDelete(chatId);
-  if (!deleteChat) {
-    return res.status(404).json(new ApiError(404, {}, "chat not found"));
-  }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "chat deleted successfully!"));
+  try {
+    // Find the chat first
+    const chat = await Chat.findById(chatId);
+    
+    if (!chat) {
+      return res.status(404).json(new ApiError(404, {}, "Chat not found"));
+    }
+
+    // Check if it's a group chat
+    if (chat.isGroupChat) {
+      // For group chats, verify user is the admin
+      if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+        return res
+          .status(403)
+          .json(
+            new ApiError(403, {}, "Only group admin can delete the group")
+          );
+      }
+
+      // Delete group avatar from Cloudinary if exists
+      if (chat.groupAvatar) {
+        try {
+          const urlParts = chat.groupAvatar.split('/');
+          const publicIdWithExtension = urlParts[urlParts.length - 1];
+          const publicId = publicIdWithExtension.split('.')[0];
+          
+          await DeleteOnCloudinary(publicId);
+          console.log("Group avatar deleted from Cloudinary:", publicId);
+        } catch (error) {
+          console.error("Error deleting group avatar:", error);
+        }
+      }
+    } else {
+      // For one-on-one chats, verify user is part of the chat
+      const isUserInChat = chat.users.some(
+        (user) => user.toString() === req.user._id.toString()
+      );
+
+      if (!isUserInChat) {
+        return res
+          .status(403)
+          .json(
+            new ApiError(403, {}, "You are not authorized to delete this chat")
+          );
+      }
+    }
+
+    // Get all messages with attachments for this chat
+    const messagesWithAttachments = await Message.find({
+      chat: chatId,
+      attachments: { $exists: true, $ne: [] },
+    });
+
+    // Delete all attachments from Cloudinary
+    for (const message of messagesWithAttachments) {
+      if (message.attachments && message.attachments.length > 0) {
+        for (const attachment of message.attachments) {
+          if (attachment.publicId) {
+            try {
+              await DeleteOnCloudinary(attachment.publicId);
+              console.log(`Deleted attachment: ${attachment.publicId}`);
+            } catch (error) {
+              console.error(
+                `Failed to delete attachment: ${attachment.publicId}`,
+                error
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Delete all messages in the chat
+    const deletedMessages = await Message.deleteMany({ chat: chatId });
+    console.log(`Deleted ${deletedMessages.deletedCount} messages`);
+
+    // Finally, delete the chat
+    const deletedChat = await Chat.findByIdAndDelete(chatId);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            deletedChat,
+            deletedMessagesCount: deletedMessages.deletedCount,
+          },
+          chat.isGroupChat
+            ? "Group deleted successfully!"
+            : "Chat deleted successfully!"
+        )
+      );
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    return res
+      .status(500)
+      .json(new ApiError(500, {}, "Failed to delete chat"));
+  }
 });
 
 const clearChat = asyncHandler(async (req, res) => {

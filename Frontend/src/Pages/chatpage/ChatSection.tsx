@@ -101,6 +101,26 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
+  const handleGroupUpdate = (updatedGroup: Chat) => {
+    // Update the chat in the store
+    const updateChat = useChatStore.getState().updateChat;
+    updateChat(updatedGroup);
+
+    // Update current chat if it's the one being updated
+    if (currentChat?._id === updatedGroup._id) {
+      const setCurrentChat = useChatStore.getState().setCurrentChat;
+      setCurrentChat(updatedGroup);
+    }
+
+    // Optional: Emit socket event to notify other users
+    if (socket && socketConnected) {
+      socket.emit("group updated", {
+        groupId: updatedGroup._id,
+        updatedGroup: updatedGroup,
+      });
+    }
+  };
+
   // Initialize socket
   useEffect(() => {
     socket = io(ENDPOINT);
@@ -150,7 +170,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat
       ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) ||
-        null
+      null
       : null;
 
   // Initialize voice call hook
@@ -288,7 +308,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error clearing chat:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to clear chat. Please try again."
+        "Failed to clear chat. Please try again."
       );
       throw error;
     }
@@ -318,9 +338,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   // Group management functions
   const handleEditGroup = async (group: Chat) => {
     try {
-      // Implement edit group logic
-      console.log("Editing group:", group);
-      toast.success("Group settings updated successfully!");
+      // The EditGroupDetails component handles the actual editing
+      // This function is no longer needed as a direct action
+      console.log("Opening edit modal for group:", group);
     } catch (error) {
       toast.error("Failed to update group settings");
       console.error("Error editing group:", error);
@@ -368,7 +388,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error leaving group:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to leave group. Please try again."
+        "Failed to leave group. Please try again."
       );
     }
   };
@@ -462,6 +482,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
               onEditGroup={handleEditGroup}
               onAddMembers={handleAddMembers}
               onLeaveGroup={handleLeaveGroup}
+              onGroupUpdate={handleGroupUpdate} // ADD THIS PROP
             />
           ) : (
             <UserProfileModal

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   Dialog,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { User } from "@/components/store/userStore";
 import AddMember from "./AddMember";
+import EditGroupDetails from "./EditGroupDetails"; // NEW IMPORT
 
 interface GroupMember {
   _id: string;
@@ -55,7 +55,7 @@ interface GroupChatDetailsProps {
   onAddMembers?: (members: User[], groupId: string) => Promise<void> | void;
   onLeaveGroup?: (group: GroupChat) => void;
   allUsers?: User[];
-  onGroupUpdate?: (updatedGroup: GroupChat) => void; // Callback to update parent state
+  onGroupUpdate?: (updatedGroup: GroupChat) => void;
 }
 
 const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
@@ -68,9 +68,10 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   onLeaveGroup,
   onAddMembers,
   allUsers = [],
-  onGroupUpdate, // New prop to update parent
+  onGroupUpdate,
 }) => {
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [editGroupOpen, setEditGroupOpen] = useState(false); // NEW STATE
   const [localGroup, setLocalGroup] = useState<GroupChat | null>(group);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -158,10 +159,9 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
         await onAddMembers(selectedUsers, localGroup._id);
       }
 
-      // If we have updated group data from API response, use it
       if (updatedGroup) {
         setLocalGroup(updatedGroup);
-        onGroupUpdate?.(updatedGroup); // Update parent component
+        onGroupUpdate?.(updatedGroup);
       }
 
       setAddMembersOpen(false);
@@ -173,7 +173,19 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   // Handle real-time updates from AddMember component
   const handleMembersAdded = (updatedGroup: GroupChat) => {
     setLocalGroup(updatedGroup);
-    onGroupUpdate?.(updatedGroup); // Update parent component
+    onGroupUpdate?.(updatedGroup);
+  };
+
+  // NEW: Handle group details update
+  const handleGroupDetailsUpdated = (updatedGroup: GroupChat) => {
+    setLocalGroup(updatedGroup);
+    onGroupUpdate?.(updatedGroup);
+    setEditGroupOpen(false);
+  };
+
+  // NEW: Handle edit group click
+  const handleEditGroupClick = () => {
+    setEditGroupOpen(true);
   };
 
   return (
@@ -342,7 +354,7 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
                 <Button
                   variant="outline"
                   className="w-full justify-start border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950"
-                  onClick={() => onEditGroup?.(localGroup)}
+                  onClick={handleEditGroupClick}
                   disabled={isRefreshing}
                 >
                   <Settings className="h-4 w-4 mr-2" />
@@ -387,6 +399,17 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
         currentChat={localGroup}
         onMembersAdded={handleMembersAdded}
       />
+
+      {/* NEW: Edit Group Details Dialog */}
+      {isUserAdmin && (
+        <EditGroupDetails
+          open={editGroupOpen}
+          onOpenChange={setEditGroupOpen}
+          group={localGroup}
+          currentUser={currentUser}
+          onGroupUpdated={handleGroupDetailsUpdated}
+        />
+      )}
     </>
   );
 };

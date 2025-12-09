@@ -52,16 +52,14 @@ const accessChat = asyncHandler(async (req, res) => {
 
 const fetchChats = asyncHandler(async (req, res) => {
   try {
-    // Find chats where logged-in user is in the users array
     let chats = await Chat.find({
       users: { $elemMatch: { $eq: req.user._id } },
     })
-      .populate("users", "-password") // populate all users except password
-      .populate("groupAdmin", "-password") // populate group admin
-      .populate("latestMessage") // populate latest message
-      .sort({ updatedAt: -1 }); // latest updated first
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password")
+      .populate("latestMessage")
+      .sort({ updatedAt: -1 });
 
-    // Populate latestMessage.sender with username, avatar, email
     chats = await User.populate(chats, {
       path: "latestMessage.sender",
       select: "username avatar email",
@@ -89,21 +87,16 @@ const createGroupChats = asyncHandler(async (req, res) => {
       .json(new ApiError(400, "more than 2 users required for group chat"));
   }
 
-  // Handle avatar upload if file is provided
   let avatarUrl = null;
   if (req.files) {
-    // console.log("File path:", req.files.groupAvatar[0]);
     const avatarLocalPath = [req.files.groupAvatar[0]?.buffer];
     try {
       const uploadResult = await UploadOnCloudinary(avatarLocalPath);
-      // console.log("Cloudinary upload result:", uploadResult);
       if (uploadResult) {
         avatarUrl = uploadResult[0].url;
-        // console.log("Avatar uploaded:", avatarUrl);
       }
     } catch (error) {
       console.error("Error uploading avatar:", error);
-      // Continue without avatar if upload fails
     }
   }
 
@@ -114,7 +107,6 @@ const createGroupChats = asyncHandler(async (req, res) => {
     groupAdmin: req.user,
   };
 
-  // Add avatar URL if available
   if (avatarUrl) {
     groupChatData.groupAvatar = avatarUrl;
   }
@@ -135,8 +127,6 @@ const createGroupChats = asyncHandler(async (req, res) => {
 
 const renameGroup = asyncHandler(async (req, res) => {
   const { chatId, chatName } = req.body;
-  //get chatId , chatName
-  //change name of that chatId
 
   const newChatName = await Chat.findByIdAndUpdate(
     chatId,
@@ -151,6 +141,198 @@ const renameGroup = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(200, newChatName, "group chat name updated successfully!")
     );
+});
+
+// NEW: Update Group Details (Name and/or Avatar)
+const updateGroupDetails = asyncHandler(async (req, res) => {
+  const { chatId, chatName } = req.body;
+
+  try {
+    // Find the chat first
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json(new ApiError(404, {}, "Chat not found"));
+    }
+
+    // Verify it's a group chat
+    if (!chat.isGroupChat) {
+      return res
+        .status(400)
+        .json(new ApiError(400, {}, "This is not a group chat"));
+    }
+
+    // Verify user is the group admin
+    if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+      return res
+        .status(403)
+        .json(
+          new ApiError(
+            403,
+            {},
+            "Only group admin can update group details"
+          )
+        );
+    }
+
+    // Prepare update object
+    const updateData = {};
+
+    // Update chat name if provided
+    if (chatName && chatName.trim()) {
+      updateData.chatName = chatName.trim();
+    }
+
+    // Handle avatar update if file is provided
+    if (req.files && req.files.groupAvatar) {
+      try {
+        // Delete old avatar from Cloudinary if exists
+        if (chat.groupAvatar) {
+          // Extract public_id from the URL
+          const urlParts = chat.groupAvatar.split('/');
+          const publicIdWithExtension = urlParts[urlParts.length - 1];
+          const publicId = publicIdWithExtension.split('.')[0];
+          
+          try {
+            await DeleteOnCloudinary(publicId);
+            console.log("Old avatar deleted:", publicId);
+          } catch (error) {
+            console.error("Error deleting old avatar:", error);
+          }
+        }
+
+        // Upload new avatar
+        const avatarLocalPath = [req.files.groupAvatar[0]?.buffer];
+        const uploadResult = await UploadOnCloudinary(avatarLocalPath);
+        
+        if (uploadResult && uploadResult[0]) {
+          updateData.groupAvatar = uploadResult[0].url;
+          console.log("New avatar uploaded:", uploadResult[0].url);
+        }
+      } catch (error) {
+        console.error("Error uploading new avatar:", error);
+        return res
+          .status(500)
+          .json(new ApiError(500, {}, "Failed to upload avatar"));
+      }
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return res
+        .status(400)
+        .json(
+          new ApiError(400, {}, "Please provide details to update")
+        );
+    }
+
+    // Update the chat
+    const updatedChat = await Chat.findByIdAndUpdate(
+      chatId,
+      updateData,
+      { new: true }
+    )
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password")
+      .populate("latestMessage");
+
+    // Populate latestMessage sender if exists
+    if (updatedChat.latestMessage) {
+      await updatedChat.populate({
+        path: "latestMessage.sender",
+        select: "username avatar email",
+      });
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          updatedChat,
+          "Group details updated successfully!"
+        )
+      );
+  } catch (error) {
+    console.error("Error updating group details:", error);
+    return res
+      .status(500)
+      .json(new ApiError(500, {}, "Failed to update group details"));
+  }
+});
+
+// NEW: Remove Group Avatar
+const removeGroupAvatar = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+
+  try {
+    // Find the chat
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json(new ApiError(404, {}, "Chat not found"));
+    }
+
+    // Verify it's a group chat
+    if (!chat.isGroupChat) {
+      return res
+        .status(400)
+        .json(new ApiError(400, {}, "This is not a group chat"));
+    }
+
+    // Verify user is the group admin
+    if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+      return res
+        .status(403)
+        .json(
+          new ApiError(403, {}, "Only group admin can remove group avatar")
+        );
+    }
+
+    // Check if avatar exists
+    if (!chat.groupAvatar) {
+      return res
+        .status(400)
+        .json(new ApiError(400, {}, "Group has no avatar to remove"));
+    }
+
+    // Delete avatar from Cloudinary
+    try {
+      const urlParts = chat.groupAvatar.split('/');
+      const publicIdWithExtension = urlParts[urlParts.length - 1];
+      const publicId = publicIdWithExtension.split('.')[0];
+      
+      await DeleteOnCloudinary(publicId);
+      console.log("Avatar deleted from Cloudinary:", publicId);
+    } catch (error) {
+      console.error("Error deleting avatar from Cloudinary:", error);
+    }
+
+    // Update chat to remove avatar
+    const updatedChat = await Chat.findByIdAndUpdate(
+      chatId,
+      { groupAvatar: null },
+      { new: true }
+    )
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password")
+      .populate("latestMessage");
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          updatedChat,
+          "Group avatar removed successfully!"
+        )
+      );
+  } catch (error) {
+    console.error("Error removing group avatar:", error);
+    return res
+      .status(500)
+      .json(new ApiError(500, {}, "Failed to remove group avatar"));
+  }
 });
 
 const addToGroup = asyncHandler(async (req, res) => {
@@ -189,14 +371,6 @@ const LeaveGroup = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, updatedChat, "user removed from the gourp!"));
 });
 
-// const seachUser = asyncHandler(async (req, res) => {
-//   const { userId } = req.params;
-//   if (!userId) {
-//     return res.status(404).json(new ApiError(404, "no user found!"));
-//   }
-//   const user = await User
-// })
-
 const deleteChat = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
   const deleteChat = await Chat.findByIdAndDelete(chatId);
@@ -209,18 +383,15 @@ const deleteChat = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "chat deleted successfully!"));
 });
 
-// NEW: Clear Chat Function
 const clearChat = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
 
   try {
-    // Check if chat exists
     const chat = await Chat.findById(chatId);
     if (!chat) {
       return res.status(404).json(new ApiError(404, {}, "Chat not found"));
     }
 
-    // Verify user is part of the chat
     const isUserInChat = chat.users.some(
       (user) => user.toString() === req.user._id.toString()
     );
@@ -233,13 +404,11 @@ const clearChat = asyncHandler(async (req, res) => {
         );
     }
 
-    // Get all messages for this chat that have attachments
     const messagesWithAttachments = await Message.find({
       chat: chatId,
       attachments: { $exists: true, $ne: [] },
     });
 
-    // Delete all attachments from Cloudinary
     for (const message of messagesWithAttachments) {
       if (message.attachments && message.attachments.length > 0) {
         for (const attachment of message.attachments) {
@@ -258,10 +427,8 @@ const clearChat = asyncHandler(async (req, res) => {
       }
     }
 
-    // Delete all messages in the chat
     const result = await Message.deleteMany({ chat: chatId });
 
-    // Update chat's latestMessage to null
     await Chat.findByIdAndUpdate(chatId, {
       latestMessage: null,
     });
@@ -284,7 +451,6 @@ const clearChat = asyncHandler(async (req, res) => {
 const togglePin = asyncHandler(async (req, res) => {
   const { chatId } = req.body;
 
-  // Validate input
   if (!chatId) {
     return res
       .status(400)
@@ -292,20 +458,16 @@ const togglePin = asyncHandler(async (req, res) => {
   }
 
   try {
-    // Find the chat and toggle the pinned status
     const chat = await Chat.findById(chatId);
 
     if (!chat) {
       return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
     }
 
-    // Toggle the pinned status
     chat.pinned = !chat.pinned;
 
-    // Save the updated chat
     const updatedChat = await chat.save();
 
-    // Populate necessary fields if needed
     await updatedChat.populate("users", "-password");
     if (updatedChat.isGroupChat) {
       await updatedChat.populate("groupAdmin", "-password");
@@ -332,9 +494,8 @@ const togglePin = asyncHandler(async (req, res) => {
 
 const blockUser = asyncHandler(async (req, res) => {
   const { userIdToBlock } = req.body;
-  const currentUserId = req.user._id; // From auth middleware
+  const currentUserId = req.user._id;
 
-  // Validate input
   if (!userIdToBlock) {
     return res
       .status(400)
@@ -348,13 +509,11 @@ const blockUser = asyncHandler(async (req, res) => {
   }
 
   try {
-    // Check if user exists
     const userToBlock = await User.findById(userIdToBlock);
     if (!userToBlock) {
       return res.status(404).json(new ApiResponse(404, null, "User not found"));
     }
 
-    // Check if already blocked
     const currentUser = await User.findById(currentUserId);
     if (currentUser.blockedUsers.includes(userIdToBlock)) {
       return res
@@ -362,11 +521,9 @@ const blockUser = asyncHandler(async (req, res) => {
         .json(new ApiResponse(400, null, "User is already blocked"));
     }
 
-    // Add to blocked users
     currentUser.blockedUsers.push(userIdToBlock);
     await currentUser.save();
 
-    // Remove any existing chats between users
     await Chat.deleteMany({
       isGroupChat: false,
       users: {
@@ -396,10 +553,12 @@ export {
   fetchChats,
   createGroupChats,
   renameGroup,
+  updateGroupDetails,    // NEW EXPORT
+  removeGroupAvatar,     // NEW EXPORT
   addToGroup,
   LeaveGroup,
   deleteChat,
   togglePin,
   blockUser,
-  clearChat, // EXPORT NEW FUNCTION
+  clearChat,
 };

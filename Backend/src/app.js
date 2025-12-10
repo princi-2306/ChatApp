@@ -1,6 +1,6 @@
 import express from 'express';
 import 'dotenv/config'
-import cors from 'cors' // if the whiteListing is required from backend to deliver the data to forntend
+import cors from 'cors'
 import https from 'http'
 import cookieParser from "cookie-parser"
 // routes imports
@@ -9,7 +9,7 @@ import adminRouter from "./routes/admin.routes.js"
 import messageRouter from "./routes/message.route.js"
 import chatRouter from './routes/chats.router.js';
 import notificationRouter from './routes/notification.routes.js';
-import callRouter from './routes/call.routes.js'; // NEW: Import call routes
+import callRouter from './routes/call.routes.js';
 import { Server } from 'socket.io';
 
 const app = express();
@@ -60,6 +60,43 @@ io.on("connection", (socket) => {
             console.log(newMessageRecieved);
         });
     });
+
+    // ==================== MESSAGE EDIT/REACTION EVENTS ====================
+    
+    // Listen for edit message event from client
+    socket.on("edit message", ({ messageId, content, chatId, isEdited, editedAt }) => {
+        console.log(`Message ${messageId} edited in chat ${chatId}`);
+        // Broadcast to all users in the chat
+        socket.to(chatId).emit("message edited", {
+            messageId,
+            content,
+            isEdited: isEdited || true,
+            editedAt: editedAt || new Date(),
+            chatId
+        });
+    });
+
+    // Listen for reaction event from client
+    socket.on("react to message", ({ messageId, reactions, chatId, userId, emoji }) => {
+        console.log(`Reaction ${emoji} added to message ${messageId} in chat ${chatId} by user ${userId}`);
+        // Broadcast to all users in the chat
+        socket.to(chatId).emit("message reaction", {
+            messageId,
+            reactions,
+            chatId,
+            userId,
+            emoji
+        });
+    });
+
+    // Optional: Request edit history (for real-time notifications)
+    socket.on("request edit history", ({ messageId, chatId }) => {
+        console.log(`Edit history requested for message ${messageId} in chat ${chatId}`);
+        // Client should make API call to fetch history
+        // This event can be used for logging or analytics
+    });
+
+    // ==================== END MESSAGE EDIT/REACTION EVENTS ====================
 
     socket.on("notification read", ({ notificationId, userId }) => {
         console.log(`Notification ${notificationId} read by user ${userId}`);
@@ -204,7 +241,7 @@ app.use("/api/v1/admin", adminRouter)
 app.use("/api/v1/messages", messageRouter)
 app.use("/api/v1/chats", chatRouter)
 app.use("/api/v1/notifications", notificationRouter)
-app.use("/api/v1/calls", callRouter) // NEW: Add call routes
+app.use("/api/v1/calls", callRouter)
 
 app.get("/", (req, res) => res.send(`Server running on port`));
 

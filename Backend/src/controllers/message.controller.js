@@ -7,7 +7,7 @@ import { UploadOnCloudinary } from "../utils/Cloudinary.js";
 import mongoose from "mongoose";
 import { Chat } from "../models/ChatModel.model.js";
 import { Notification } from "../models/Notification.model.js";
-import { io } from "../app.js"; // Import io instance
+import { io } from "../app.js";
 
 const getUserForSidebar = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
@@ -39,7 +39,8 @@ const getUserForSidebar = asyncHandler(async (req, res) => {
 const getMessages = asyncHandler(async (req, res) => {
     const message = await Message.find({ chat: req.params.chatId })
         .populate("sender", "username avatar email")
-        .populate("chat");
+        .populate("chat")
+        .populate("reactions.user", "username avatar");
 
     return res.status(200).json(new ApiResponse(200, message, "Messages fetched successfully"));
 });
@@ -69,12 +70,10 @@ const markMessagesAsSeen = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, message: "Message marked as seen" });
 });
 
-// Helper function to create notifications
 const createNotificationForUsers = async (message, chat, senderId) => {
   try {
     const notifications = [];
     
-    // Get message preview (first 50 chars)
     let contentPreview = message.content ? message.content.substring(0, 50) : "";
     
     if (!contentPreview && message.attachments && message.attachments.length > 0) {
@@ -82,7 +81,6 @@ const createNotificationForUsers = async (message, chat, senderId) => {
       contentPreview = `Sent ${attachmentType === 'image' ? 'an image' : 'a file'}`;
     }
 
-    // Create notification for each user in the chat except the sender
     for (const userId of chat.users) {
       if (userId.toString() !== senderId.toString()) {
         const notification = await Notification.create({
@@ -97,7 +95,6 @@ const createNotificationForUsers = async (message, chat, senderId) => {
 
         notifications.push(notification);
 
-        // Emit real-time notification via Socket.io
         io.to(userId.toString()).emit("new notification", {
           notification: await notification.populate([
             { path: "sender", select: "username avatar email" },
@@ -111,15 +108,13 @@ const createNotificationForUsers = async (message, chat, senderId) => {
     return notifications;
   } catch (error) {
     console.error("Error creating notifications:", error);
-    // Don't throw error - notifications failing shouldn't stop message sending
     return [];
   }
 };
 
-// UPDATED: Send message with file attachments and create notifications
 const sendMessage = asyncHandler(async (req, res) => {
     const { content, chatId } = req.body;
-    const files = req.files; // Files from multer
+    const files = req.files;
 
     if (!content && (!files || files.length === 0)) {
         throw new ApiError(400, "Message cannot be empty!");
@@ -129,7 +124,6 @@ const sendMessage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Chat ID is required!");
     }
 
-    // Check if chat exists and user is part of it
     const chat = await Chat.findById(chatId).populate("users");
     if (!chat) {
         throw new ApiError(404, "Chat not found!");
@@ -151,17 +145,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     };
 
     try {
-        // Upload files to Cloudinary if present
         if (files && files.length > 0) {
-            const fileBuffers = files.map(file => file.buffer);
-            
-            // Separate images and other files
             const images = files.filter(f => f.mimetype.startsWith('image/'));
             const documents = files.filter(f => !f.mimetype.startsWith('image/'));
             
             let uploadedAttachments = [];
 
-            // Upload images
             if (images.length > 0) {
                 const imageBuffers = images.map(img => img.buffer);
                 const uploadedImages = await UploadOnCloudinary(imageBuffers, "image");
@@ -178,7 +167,6 @@ const sendMessage = asyncHandler(async (req, res) => {
                 }
             }
 
-            // Upload documents/files
             if (documents.length > 0) {
                 const docBuffers = documents.map(doc => doc.buffer);
                 const uploadedDocs = await UploadOnCloudinary(docBuffers, "raw");
@@ -211,7 +199,6 @@ const sendMessage = asyncHandler(async (req, res) => {
             latestMessage: message,
         });
 
-        // Create notifications for all users in the chat except sender
         await createNotificationForUsers(message, chat, req.user._id);
 
         return res.status(200).json(new ApiResponse(200, message, "Message sent!"));
@@ -221,9 +208,167 @@ const sendMessage = asyncHandler(async (req, res) => {
     }
 });
 
+// NEW: Edit message controller
+const editMessage = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+    const { content } = req.body;
+    const userId = req.user?._id;
+
+    if (!content || content.trim() === "") {
+        throw new ApiError(400, "Message content cannot be empty");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+        throw new ApiError(400, "Invalid message ID format");
+    }
+
+    const message = await Message.findById(messageId)
+        .populate("sender", "username avatar email")
+        .populate("chat");
+
+    if (!message) {
+        throw new ApiError(404, "Message not found");
+    }
+
+    // Check if user is the sender
+    if (message.sender._id.toString() !== userId.toString()) {
+        throw new ApiError(403, "You can only edit your own messages");
+    }
+
+    // Check if message can still be edited (within 5 minutes)
+    if (!message.canBeEdited()) {
+        throw new ApiError(403, "Message can only be edited within 5 minutes of sending");
+    }
+
+    // Save original content to edit history
+    if (!message.editHistory) {
+        message.editHistory = [];
+    }
+    message.editHistory.push({
+        content: message.content,
+        editedAt: new Date()
+    });
+
+    // Update message content
+    message.content = content.trim();
+    message.isEdited = true;
+    message.editedAt = new Date();
+
+    await message.save();
+
+    // Populate the message again after save
+    await message.populate("reactions.user", "username avatar");
+
+    // Emit socket event to notify all users in the chat
+    const chat = await Chat.findById(message.chat._id);
+    chat.users.forEach(user => {
+        io.to(user._id.toString()).emit("message edited", {
+            messageId: message._id,
+            content: message.content,
+            isEdited: message.isEdited,
+            editedAt: message.editedAt,
+            chatId: message.chat._id
+        });
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, message, "Message edited successfully")
+    );
+});
+
+// NEW: Add/Remove reaction to message
+const reactToMessage = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user?._id;
+
+    if (!emoji || emoji.trim() === "") {
+        throw new ApiError(400, "Emoji is required");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+        throw new ApiError(400, "Invalid message ID format");
+    }
+
+    const message = await Message.findById(messageId).populate("chat");
+
+    if (!message) {
+        throw new ApiError(404, "Message not found");
+    }
+
+    // Check if user is part of the chat
+    const chat = await Chat.findById(message.chat._id);
+    const isUserInChat = chat.users.some(
+        user => user._id.toString() === userId.toString()
+    );
+
+    if (!isUserInChat) {
+        throw new ApiError(403, "You must be a member of this chat to react to messages");
+    }
+
+    // Add or toggle reaction
+    await message.addReaction(userId, emoji);
+
+    // Populate reactions after update
+    await message.populate("reactions.user", "username avatar");
+    await message.populate("sender", "username avatar email");
+
+    // Emit socket event to notify all users in the chat
+    chat.users.forEach(user => {
+        io.to(user._id.toString()).emit("message reaction", {
+            messageId: message._id,
+            reactions: message.reactions,
+            chatId: message.chat._id
+        });
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, message.reactions, "Reaction updated successfully")
+    );
+});
+
+// NEW: Get edit history of a message
+const getEditHistory = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+    const userId = req.user?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+        throw new ApiError(400, "Invalid message ID format");
+    }
+
+    const message = await Message.findById(messageId).populate("chat");
+
+    if (!message) {
+        throw new ApiError(404, "Message not found");
+    }
+
+    // Check if user is part of the chat
+    const chat = await Chat.findById(message.chat._id);
+    const isUserInChat = chat.users.some(
+        user => user._id.toString() === userId.toString()
+    );
+
+    if (!isUserInChat) {
+        throw new ApiError(403, "You must be a member of this chat to view edit history");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {
+            messageId: message._id,
+            currentContent: message.content,
+            isEdited: message.isEdited,
+            editedAt: message.editedAt,
+            editHistory: message.editHistory || []
+        }, "Edit history fetched successfully")
+    );
+});
+
 export {
     getUserForSidebar,
     getMessages,
     markMessagesAsSeen,
-    sendMessage
+    sendMessage,
+    editMessage,
+    reactToMessage,
+    getEditHistory
 };

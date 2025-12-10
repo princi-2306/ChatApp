@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   Dialog,
@@ -18,9 +17,12 @@ import {
   MessageSquare,
   Shield,
   Hash,
+  Trash2,
 } from "lucide-react";
 import { User } from "@/components/store/userStore";
 import AddMember from "./AddMember";
+import EditGroupDetails from "./EditGroupDetails";
+import DeleteGroupModal from "./DeleteGroupModal"; // NEW IMPORT
 
 interface GroupMember {
   _id: string;
@@ -55,7 +57,7 @@ interface GroupChatDetailsProps {
   onAddMembers?: (members: User[], groupId: string) => Promise<void> | void;
   onLeaveGroup?: (group: GroupChat) => void;
   allUsers?: User[];
-  onGroupUpdate?: (updatedGroup: GroupChat) => void; // Callback to update parent state
+  onGroupUpdate?: (updatedGroup: GroupChat) => void;
 }
 
 const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
@@ -68,9 +70,11 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   onLeaveGroup,
   onAddMembers,
   allUsers = [],
-  onGroupUpdate, // New prop to update parent
+  onGroupUpdate,
 }) => {
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false); // NEW STATE
   const [localGroup, setLocalGroup] = useState<GroupChat | null>(group);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -158,10 +162,9 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
         await onAddMembers(selectedUsers, localGroup._id);
       }
 
-      // If we have updated group data from API response, use it
       if (updatedGroup) {
         setLocalGroup(updatedGroup);
-        onGroupUpdate?.(updatedGroup); // Update parent component
+        onGroupUpdate?.(updatedGroup);
       }
 
       setAddMembersOpen(false);
@@ -173,7 +176,33 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   // Handle real-time updates from AddMember component
   const handleMembersAdded = (updatedGroup: GroupChat) => {
     setLocalGroup(updatedGroup);
-    onGroupUpdate?.(updatedGroup); // Update parent component
+    onGroupUpdate?.(updatedGroup);
+  };
+
+  // NEW: Handle group details update
+  const handleGroupDetailsUpdated = (updatedGroup: GroupChat) => {
+    setLocalGroup(updatedGroup);
+    onGroupUpdate?.(updatedGroup);
+    setEditGroupOpen(false);
+  };
+
+  // NEW: Handle edit group click
+  const handleEditGroupClick = () => {
+    setEditGroupOpen(true);
+  };
+
+  // NEW: Handle delete group click
+  const handleDeleteGroupClick = () => {
+    setDeleteGroupOpen(true);
+  };
+
+  // NEW: Handle group deleted
+  const handleGroupDeleted = () => {
+    onOpenChange(false);
+    // The parent component should handle navigation
+    if (onLeaveGroup) {
+      onLeaveGroup(localGroup);
+    }
   };
 
   return (
@@ -339,15 +368,27 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
             {/* Action Buttons */}
             <div className="space-y-2">
               {isUserAdmin && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950"
-                  onClick={() => onEditGroup?.(localGroup)}
-                  disabled={isRefreshing}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Edit Group Settings
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950"
+                    onClick={handleEditGroupClick}
+                    disabled={isRefreshing}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Edit Group Settings
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 border-red-200 dark:border-red-800"
+                    onClick={handleDeleteGroupClick}
+                    disabled={isRefreshing}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Group
+                  </Button>
+                </>
               )}
 
               <Button
@@ -360,7 +401,7 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
                 Send Message
               </Button>
 
-              {isUserMember && onLeaveGroup && (
+              {isUserMember && !isUserAdmin && onLeaveGroup && (
                 <Button
                   variant="outline"
                   className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 border-red-200 dark:border-red-800"
@@ -368,7 +409,7 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
                   disabled={isRefreshing}
                 >
                   <Shield className="h-4 w-4 mr-2" />
-                  {isUserAdmin ? "Delete Group" : "Leave Group"}
+                  Leave Group
                 </Button>
               )}
             </div>
@@ -387,6 +428,28 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
         currentChat={localGroup}
         onMembersAdded={handleMembersAdded}
       />
+
+      {/* NEW: Edit Group Details Dialog */}
+      {isUserAdmin && (
+        <EditGroupDetails
+          open={editGroupOpen}
+          onOpenChange={setEditGroupOpen}
+          group={localGroup}
+          currentUser={currentUser}
+          onGroupUpdated={handleGroupDetailsUpdated}
+        />
+      )}
+
+      {/* NEW: Delete Group Confirmation Dialog */}
+      {isUserAdmin && (
+        <DeleteGroupModal
+          open={deleteGroupOpen}
+          onOpenChange={setDeleteGroupOpen}
+          group={localGroup}
+          currentUser={currentUser}
+          onGroupDeleted={handleGroupDeleted}
+        />
+      )}
     </>
   );
 };

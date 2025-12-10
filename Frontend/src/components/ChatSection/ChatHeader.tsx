@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   X,
   Phone,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -26,8 +28,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { User } from "@/components/store/userStore";
+import { Chat } from "@/components/store/chatStore";
 
 interface ChatHeaderProps {
+  currentChat: Chat;
   otherUser: User | null;
   onBack?: () => void;
   formatTime: (date: Date | string) => string;
@@ -36,7 +40,8 @@ interface ChatHeaderProps {
   searchQuery: string;
   onViewProfile: () => void;
   onClearChat: () => Promise<void>;
-  onInitiateCall: () => void; // NEW: Voice call handler
+  onInitiateCall: () => void;
+  onDeleteChat?: () => void; // NEW: Delete chat handler
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ 
@@ -49,7 +54,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   searchQuery,
   onViewProfile,
   onClearChat,
-  onInitiateCall, // NEW
+  onInitiateCall,
+  onDeleteChat, // NEW
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -128,13 +134,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
               <Avatar className="h-10 w-10 cursor-pointer" onClick={onViewProfile}>
-                <AvatarImage src={currentChat.isGroupChat ? currentChat.groupAvatar : otherUser?.avatar} alt={otherUser?.username} />
-                <AvatarFallback>{ otherUser?.username?.charAt(0)}</AvatarFallback>
+                <AvatarImage 
+                  src={currentChat.isGroupChat ? currentChat.groupAvatar : otherUser?.avatar} 
+                  alt={currentChat.isGroupChat ? currentChat.chatName : otherUser?.username} 
+                />
+                <AvatarFallback>
+                  {currentChat.isGroupChat 
+                    ? currentChat.chatName?.charAt(0).toUpperCase() 
+                    : otherUser?.username?.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <div className="cursor-pointer" onClick={onViewProfile}>
-                <h3 className="font-semibold">{currentChat.isGroupChat ? currentChat.chatName : otherUser?.username}</h3>
+                <h3 className="font-semibold">
+                  {currentChat.isGroupChat ? currentChat.chatName : otherUser?.username}
+                </h3>
                 <p className="text-xs text-muted-foreground">
-                  {otherUser?.status === "online" ? (
+                  {currentChat.isGroupChat ? (
+                    `${currentChat.users?.length || 0} members`
+                  ) : otherUser?.status === "online" ? (
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-green-500"></span>
                       Online
@@ -147,37 +164,59 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* NEW: Voice Call Button */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={onInitiateCall}
-                className="hover:bg-primary/10 hover:text-primary"
-              >
-                <Phone className="h-5 w-5" />
-              </Button>
+              {/* Voice Call Button (only for one-on-one chats) */}
+              {!currentChat.isGroupChat && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={onInitiateCall}
+                  className="hover:bg-primary/10 hover:text-primary"
+                >
+                  <Phone className="h-5 w-5" />
+                </Button>
+              )}
               
               <Button variant="ghost" size="icon" onClick={handleSearchToggle}>
                 <Search className="h-5 w-5" />
               </Button>
               
               <DropdownMenu>
-                <DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem onClick={onViewProfile}>
-                    View Profile
+                    View {currentChat.isGroupChat ? "Group" : "Profile"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Mute Notifications</DropdownMenuItem>
+                  
+                  <DropdownMenuItem>
+                    Mute Notifications
+                  </DropdownMenuItem>
+                  
                   <DropdownMenuItem onClick={() => setShowClearDialog(true)}>
                     Clear Chat
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
-                    Block User
-                  </DropdownMenuItem>
+                  
+                  {!currentChat.isGroupChat && (
+                    <DropdownMenuItem className="text-red-600">
+                      Block User
+                    </DropdownMenuItem>
+                  )}
+                  
+                  <DropdownMenuSeparator />
+                  
+                  {/* NEW: Delete Chat/Group Option */}
+                  {onDeleteChat && (
+                    <DropdownMenuItem
+                      onClick={onDeleteChat}
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete {currentChat.isGroupChat ? "Group" : "Chat"}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

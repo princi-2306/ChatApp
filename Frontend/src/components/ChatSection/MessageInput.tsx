@@ -70,13 +70,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div className="p-4 border-t relative">
+      <div className="translate-x-12 -translate-y-4">
       <EmojiPickerComponent
         open={open}
         setOpen={setOpen}
         handleEmoji={handleEmoji}
         isMobile={isMobile}
         emojiButtonRef={emojiButtonRef}
-      />
+        />
+      </div>
 
       {/* Attachment Menu */}
       {showAttachmentMenu && (

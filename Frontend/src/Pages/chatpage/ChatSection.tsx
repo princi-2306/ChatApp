@@ -35,6 +35,15 @@ interface ChatSectionProps {
   onBack?: () => void;
 }
 
+// HELPER FUNCTION: Sort messages by creation time (oldest first)
+const sortMessagesByTime = (messages: Message[]): Message[] => {
+  return [...messages].sort((a, b) => {
+    const timeA = new Date(a.createdAt).getTime();
+    const timeB = new Date(b.createdAt).getTime();
+    return timeA - timeB; // Ascending order (oldest first)
+  });
+};
+
 const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -150,9 +159,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         config
       );
 
-      // Update local messages
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
+      // Update local messages and maintain sort order
+      setMessages((prevMessages) => {
+        const updatedMessages = prevMessages.map((msg) =>
           msg._id === messageId
             ? {
                 ...msg,
@@ -161,8 +170,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
                 editedAt: new Date(),
               }
             : msg
-        )
-      );
+        );
+        return sortMessagesByTime(updatedMessages);
+      });
 
       // Emit socket event
       if (socket && socketConnected && currentChat) {
@@ -204,7 +214,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       // Update local messages with new reactions
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions: data.data } : msg
+          msg._id === messageId ? { ...msg, reactions: data.data.reactions } : msg
         )
       );
 
@@ -212,7 +222,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       if (socket && socketConnected && currentChat) {
         socket.emit("react to message", {
           messageId,
-          reactions: data.data,
+          reactions: data.data.reactions,
           chatId: currentChat._id,
           userId: currentUser?._id,
           emoji,
@@ -246,17 +256,18 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
 
     // NEW: Listen for message edits
     socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
+      setMessages((prevMessages) => {
+        const updatedMessages = prevMessages.map((msg) =>
           msg._id === messageId
             ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
             : msg
-        )
-      );
+        );
+        return sortMessagesByTime(updatedMessages);
+      });
     });
 
     // NEW: Listen for message reactions
-    socket.on("message reaction", ({ messageId, reactions }) => {
+    socket.on("message reacted", ({ messageId, reactions }) => {
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg._id === messageId ? { ...msg, reactions } : msg
@@ -309,7 +320,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       socket.off("typing");
       socket.off("stop typing");
       socket.off("message edited");
-      socket.off("message reaction");
+      socket.off("message reacted");
       socket.off("new notification");
       socket.off("chat deleted");
       socket.off("group deleted");
@@ -366,13 +377,16 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         config
       );
 
-      setMessages(data.data);
+      // FIXED: Sort messages after fetching
+      const sortedMessages = sortMessagesByTime(data.data);
+      setMessages(sortedMessages);
       setLoading(false);
 
       socket.emit("join chat", currentChat?._id);
     } catch (error) {
       toast.error("Unable to fetch chats with this user");
       console.log(error);
+      setLoading(false);
     }
   };
 
@@ -422,7 +436,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       );
 
       socket.emit("new message", data.data);
-      setMessages([...messages, data.data]);
+      
+      // FIXED: Add new message and maintain sort order
+      setMessages((prevMessages) => sortMessagesByTime([...prevMessages, data.data]));
     } catch (error) {
       toast.error("Cannot send message!");
       console.log(error);
@@ -480,7 +496,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       return contentMatch || attachmentMatch;
     });
 
-    setFilteredMessages(filtered);
+    // FIXED: Sort filtered messages too
+    setFilteredMessages(sortMessagesByTime(filtered));
   };
 
   const handleEditGroup = async (group: Chat) => {
@@ -579,7 +596,10 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       ) {
         console.log("Message received for different chat");
       } else {
-        setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
+        // FIXED: Add received message and maintain sort order
+        setMessages((prevMessages) => 
+          sortMessagesByTime([...prevMessages, newMessageRecieved])
+        );
       }
     });
 

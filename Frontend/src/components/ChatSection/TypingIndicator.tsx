@@ -9,7 +9,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ isTyping }) => {
   if (!isTyping) return null;
 
   return (
-    <div className="absolute bottom-36">
+    <div className="absolute bottom-36 translate-y-20">
       <DotLottieReact
         width={70}
         src="https://lottie.host/d4e2179d-3f5a-45f1-b76b-5cf513c304cb/qMCCGpV3TW.lottie"

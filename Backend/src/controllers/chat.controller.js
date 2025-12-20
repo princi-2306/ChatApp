@@ -50,8 +50,23 @@ const accessChat = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, FullChat, "Chats created successfully!"));
 });
 
+
 const fetchChats = asyncHandler(async (req, res) => {
   try {
+    // Get current user with blocked users
+    const currentUser = await User.findById(req.user._id);
+    
+    // Get users who have blocked the current user
+    const usersWhoBlockedMe = await User.find({
+        blockedUsers: req.user._id
+    }).select('_id');
+    
+    const blockedByIds = usersWhoBlockedMe.map(u => u._id);
+    const allBlockedUserIds = [
+        ...currentUser.blockedUsers,
+        ...blockedByIds
+    ];
+
     let chats = await Chat.find({
       users: { $elemMatch: { $eq: req.user._id } },
     })
@@ -59,6 +74,27 @@ const fetchChats = asyncHandler(async (req, res) => {
       .populate("groupAdmin", "-password")
       .populate("latestMessage")
       .sort({ updatedAt: -1 });
+
+    // Filter out chats with blocked users (for one-on-one chats only)
+    chats = chats.filter(chat => {
+        if (chat.isGroupChat) {
+            // Keep all group chats
+            return true;
+        } else {
+            // For one-on-one chats, check if the other user is blocked
+            const otherUser = chat.users.find(
+                user => user._id.toString() !== req.user._id.toString()
+            );
+            
+            if (otherUser) {
+                const isBlocked = allBlockedUserIds.some(
+                    id => id.toString() === otherUser._id.toString()
+                );
+                return !isBlocked; // Keep chat only if user is not blocked
+            }
+            return true;
+        }
+    });
 
     chats = await User.populate(chats, {
       path: "latestMessage.sender",
@@ -69,9 +105,11 @@ const fetchChats = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, chats, "All chats fetched successfully!"));
   } catch (error) {
+    console.error("Fetch chats error:", error);
     res.status(500).json(new ApiResponse(500, null, "Failed to fetch chats"));
   }
 });
+
 
 const createGroupChats = asyncHandler(async (req, res) => {
   if (!req.body.users || !req.body.name) {
@@ -584,6 +622,7 @@ const togglePin = asyncHandler(async (req, res) => {
   }
 });
 
+
 const blockUser = asyncHandler(async (req, res) => {
   const { userIdToBlock } = req.body;
   const currentUserId = req.user._id;
@@ -607,15 +646,19 @@ const blockUser = asyncHandler(async (req, res) => {
     }
 
     const currentUser = await User.findById(currentUserId);
+    
+    // Check if already blocked
     if (currentUser.blockedUsers.includes(userIdToBlock)) {
       return res
         .status(400)
         .json(new ApiResponse(400, null, "User is already blocked"));
     }
 
+    // Add to blocked list
     currentUser.blockedUsers.push(userIdToBlock);
     await currentUser.save();
 
+    // Delete one-on-one chat between these users
     await Chat.deleteMany({
       isGroupChat: false,
       users: {
@@ -628,7 +671,15 @@ const blockUser = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          { blockedUser: userToBlock },
+          { 
+            blockedUser: {
+              _id: userToBlock._id,
+              username: userToBlock.username,
+              email: userToBlock.email,
+              avatar: userToBlock.avatar
+            },
+            blockedUsersCount: currentUser.blockedUsers.length
+          },
           "User blocked successfully"
         )
       );
@@ -639,6 +690,114 @@ const blockUser = asyncHandler(async (req, res) => {
       .json(new ApiResponse(500, null, "Internal server error"));
   }
 });
+
+// NEW: Unblock user function
+const unblockUser = asyncHandler(async (req, res) => {
+  const { userIdToUnblock } = req.body;
+  const currentUserId = req.user._id;
+
+  if (!userIdToUnblock) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "User ID to unblock is required"));
+  }
+
+  try {
+    const currentUser = await User.findById(currentUserId);
+    
+    // Check if user is actually blocked
+    if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "User is not blocked"));
+    }
+
+    // Remove from blocked list
+    currentUser.blockedUsers = currentUser.blockedUsers.filter(
+      id => id.toString() !== userIdToUnblock
+    );
+    await currentUser.save();
+
+    const unblockedUser = await User.findById(userIdToUnblock).select(
+      "username email avatar"
+    );
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            unblockedUser,
+            blockedUsersCount: currentUser.blockedUsers.length
+          },
+          "User unblocked successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error unblocking user:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+// NEW: Get list of blocked users
+const getBlockedUsers = asyncHandler(async (req, res) => {
+  const currentUserId = req.user._id;
+
+  try {
+    const currentUser = await User.findById(currentUserId)
+      .populate("blockedUsers", "username email avatar");
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            blockedUsers: currentUser.blockedUsers,
+            count: currentUser.blockedUsers.length
+          },
+          "Blocked users fetched successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error fetching blocked users:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+// NEW: Check if a user is blocked
+const isUserBlocked = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const currentUserId = req.user._id;
+
+  try {
+    const currentUser = await User.findById(currentUserId);
+    const isBlocked = currentUser.blockedUsers.includes(userId);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { isBlocked },
+          isBlocked ? "User is blocked" : "User is not blocked"
+        )
+      );
+  } catch (error) {
+    console.error("Error checking block status:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+
+
 
 export {
   accessChat,
@@ -653,4 +812,7 @@ export {
   togglePin,
   blockUser,
   clearChat,
+  unblockUser,
+  getBlockedUsers,
+  isUserBlocked
 };

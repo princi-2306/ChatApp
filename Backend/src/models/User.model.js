@@ -8,7 +8,7 @@ const userSchema = new Schema({
         required: true,
         unique: true,
         minlength: 3,
-        index:true   // an optimize method for enabling searching feild
+        index:true
     },
     email: {
         type: String,
@@ -29,36 +29,38 @@ const userSchema = new Schema({
         default: "user"
     },
     avatar:{
-        type: String,    // cloudnary URL
+        type: String,
         default: "default-avatar.jpg",
         required: true
     },
     refreshToken:{
         type: String
     },
-    // Now starting modeling according to video
+    // NEW: Blocked users array
+    blockedUsers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }],
     cartData:{
         type: Object,
         default: {}
-        }
+    }
     
 }, {timestamps:true, minimize: false})
 
-// setting the pre save middleware in the schema.  // bcrypt help us to encrypt the password.
 userSchema.pre("save", async function(next){
     if(!this.isModified("password")) return next();
     this.password = await bcrypt.hash(this.password, 10)
     next()
 })
 
-// creating the custom methods for the mongoose
 userSchema.methods.isPasswordCorrect = async function(password){
-    return await bcrypt.compare(password, this.password)   // this will compare the old password with the new one and return boolean output
+    return await bcrypt.compare(password, this.password)
 }
 
 userSchema.methods.generateAccessToken = function(){
     return jwt.sign(
-        {                   // this is how i am sending the payload
+        {
         _id: this._id,
         email: this.email,
         username: this.username,
@@ -72,7 +74,7 @@ userSchema.methods.generateAccessToken = function(){
 
 userSchema.methods.generateRefreshToken = function(){
     return jwt.sign(
-        {                   // this is how i am sending the payload
+        {
         _id: this._id
         },
         process.env.REFRESH_TOKEN_SECRET,

@@ -6,13 +6,16 @@ import {
     fetchChats,
     createGroupChats,
     renameGroup,
-    updateGroupDetails,    // NEW IMPORT
-    removeGroupAvatar,     // NEW IMPORT
+    updateGroupDetails,
+    removeGroupAvatar,
     addToGroup,
     LeaveGroup,
     deleteChat,
     togglePin,
     blockUser,
+    unblockUser,           // NEW
+    getBlockedUsers,       // NEW
+    isUserBlocked,         // NEW
     clearChat
 } from "../controllers/chat.controller.js";
 
@@ -39,7 +42,7 @@ chatRouter.route("/group").post(
 // Update group name only (legacy - kept for backward compatibility)
 chatRouter.route("/rename").put(verifyJWT, renameGroup);
 
-// NEW: Update group details (name and/or avatar)
+// Update group details (name and/or avatar)
 chatRouter.route("/update-group-details").put(
   verifyJWT,
   upload.fields([
@@ -51,14 +54,17 @@ chatRouter.route("/update-group-details").put(
   updateGroupDetails
 );
 
-// NEW: Remove group avatar
+// Remove group avatar
 chatRouter.route("/remove-group-avatar").put(verifyJWT, removeGroupAvatar);
 
 // Toggle pin status
 chatRouter.route("/toggle-pin").put(verifyJWT, togglePin);
 
-// Block user
+// Block/Unblock user routes
 chatRouter.route("/block-user").put(verifyJWT, blockUser);
+chatRouter.route("/unblock-user").put(verifyJWT, unblockUser);           // NEW
+chatRouter.route("/blocked-users").get(verifyJWT, getBlockedUsers);      // NEW
+chatRouter.route("/is-blocked/:userId").get(verifyJWT, isUserBlocked);   // NEW
 
 // Leave group
 chatRouter.route("/group-leave").put(verifyJWT, LeaveGroup);

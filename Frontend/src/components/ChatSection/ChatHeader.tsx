@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   MoreVertical,
@@ -6,6 +6,8 @@ import {
   X,
   Phone,
   Trash2,
+  Ban,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +31,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { User } from "@/components/store/userStore";
 import { Chat } from "@/components/store/chatStore";
+import userPost from "@/components/store/userStore";
+import useChatStore from "@/components/store/chatStore";
+import { blockUser, unblockUser, checkIfUserBlocked } from "@/lib/blockUserApi";
+import { toast } from "sonner";
 
 interface ChatHeaderProps {
   currentChat: Chat;
@@ -41,7 +47,7 @@ interface ChatHeaderProps {
   onViewProfile: () => void;
   onClearChat: () => Promise<void>;
   onInitiateCall: () => void;
-  onDeleteChat?: () => void; // NEW: Delete chat handler
+  onDeleteChat?: () => void;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ 
@@ -55,11 +61,37 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   onViewProfile,
   onClearChat,
   onInitiateCall,
-  onDeleteChat, // NEW
+  onDeleteChat,
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isBlockLoading, setIsBlockLoading] = useState(false);
+
+  const currentUser = userPost((state) => state.currentUser);
+  const addBlockedUser = userPost((state) => state.addBlockedUser);
+  const removeBlockedUser = userPost((state) => state.removeBlockedUser);
+  const deleteChat = useChatStore((state) => state.deleteChat);
+
+  // Check block status when chat changes
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (otherUser && currentUser?.token && !currentChat.isGroupChat) {
+        try {
+          const response = await checkIfUserBlocked(
+            otherUser._id.toString(),
+            currentUser.token
+          );
+          setIsBlocked(response.data.isBlocked || false);
+        } catch (error) {
+          console.error("Error checking block status:", error);
+        }
+      }
+    };
+
+    checkBlockStatus();
+  }, [otherUser, currentUser?.token, currentChat]);
 
   const handleSearchToggle = () => {
     setShowSearch(!showSearch);
@@ -81,6 +113,44 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       console.error("Error clearing chat:", error);
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleBlockUnblock = async () => {
+    if (!currentUser?.token || !otherUser) return;
+
+    setIsBlockLoading(true);
+    try {
+      if (isBlocked) {
+        // Unblock user
+        const response = await unblockUser(otherUser._id.toString(), currentUser.token);
+        removeBlockedUser(otherUser._id.toString());
+        setIsBlocked(false);
+        toast.success(response.message || "User unblocked successfully");
+      } else {
+        // Block user
+        const response = await blockUser(otherUser._id.toString(), currentUser.token);
+        addBlockedUser(otherUser);
+        setIsBlocked(true);
+        
+        // Delete the current chat
+        deleteChat(currentChat._id);
+        
+        toast.success(response.message || "User blocked successfully");
+        
+        // Navigate back
+        if (onBack) {
+          onBack();
+        }
+      }
+    } catch (error: any) {
+      console.error("Error blocking/unblocking user:", error);
+      toast.error(
+        error.response?.data?.message || 
+        `Failed to ${isBlocked ? "unblock" : "block"} user`
+      );
+    } finally {
+      setIsBlockLoading(false);
     }
   };
 
@@ -151,6 +221,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <p className="text-xs text-muted-foreground">
                   {currentChat.isGroupChat ? (
                     `${currentChat.users?.length || 0} members`
+                  ) : isBlocked ? (
+                    <span className="text-orange-600 flex items-center gap-1">
+                      <Ban className="h-3 w-3" />
+                      Blocked
+                    </span>
                   ) : otherUser?.status === "online" ? (
                     <span className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-green-500"></span>
@@ -164,8 +239,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Voice Call Button (only for one-on-one chats) */}
-              {!currentChat.isGroupChat && (
+              {/* Voice Call Button (only for one-on-one chats and not blocked) */}
+              {!currentChat.isGroupChat && !isBlocked && (
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -199,15 +274,31 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     Clear Chat
                   </DropdownMenuItem>
                   
-                  {!currentChat.isGroupChat && (
-                    <DropdownMenuItem className="text-red-600">
-                      Block User
+                  {!currentChat.isGroupChat && otherUser && (
+                    <DropdownMenuItem 
+                      onClick={handleBlockUnblock}
+                      disabled={isBlockLoading}
+                      className={isBlocked 
+                        ? "text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950" 
+                        : "text-orange-600 focus:text-orange-600 focus:bg-orange-50 dark:focus:bg-orange-950"
+                      }
+                    >
+                      {isBlocked ? (
+                        <>
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                          Unblock User
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="mr-2 h-4 w-4" />
+                          Block User
+                        </>
+                      )}
                     </DropdownMenuItem>
                   )}
                   
                   <DropdownMenuSeparator />
                   
-                  {/* NEW: Delete Chat/Group Option */}
                   {onDeleteChat && (
                     <DropdownMenuItem
                       onClick={onDeleteChat}

@@ -1,7 +1,11 @@
-import React from "react";
+import React, {useState} from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import useChatStore from "@/components/store/chatStore";
+import { blockUser } from "@/lib/blockUserApi";
+import userPost from "@/components/store/userStore";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +22,8 @@ import {
   Eraser,
   MoreHorizontal,
   BellOff,
+  Ban,
+  Loader2,
 } from "lucide-react";
 
 interface Chat {
@@ -75,6 +81,13 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
   clearChat,
   unreadCount = 0,
 }) => {
+
+  const [isBlockLoading, setIsBlockLoading] = useState(false);
+  
+  const currentUser = userPost((state) => state.currentUser);
+  const addBlockedUser = userPost((state) => state.addBlockedUser);
+  const deleteChats = useChatStore((state) => state.deleteChat);
+
   const otherUser = chat.isGroupChat
     ? null
     : chat.users?.find((u) => u._id !== loggedUser?._id);
@@ -118,6 +131,40 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
     if (hours > 0) return `Muted for ${hours}h`;
     return "Muted";
   };
+
+  const handleBlockUser = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent chat from opening
+    
+    if (!otherUser || !currentUser?.token || chat.isGroupChat) return;
+
+    setIsBlockLoading(true);
+    try {
+      const response = await blockUser(otherUser._id.toString(), currentUser.token);
+      
+      // Add to blocked users store
+      addBlockedUser({
+        _id: otherUser._id,
+        username: otherUser.username,
+        avatar: otherUser.avatar || "",
+        email: "", // Not available in chat list, but required by type
+        password: "",
+        token: "",
+      });
+      
+      // Delete the chat
+      deleteChats(chat._id);
+      
+      toast.success(response.message || "User blocked successfully");
+    } catch (error: any) {
+      console.error("Error blocking user:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to block user"
+      );
+    } finally {
+      setIsBlockLoading(false);
+    }
+  };
+
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors group">
@@ -247,6 +294,25 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
                 <Eraser className="h-4 w-4 mr-2" />
                 Clear Chat
               </DropdownMenuItem>
+            )}
+
+            {/* NEW: Block User Option (only for one-on-one chats) */}
+            {!chat.isGroupChat && otherUser && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleBlockUser}
+                  disabled={isBlockLoading}
+                  className="text-orange-600 focus:text-orange-700 focus:bg-orange-50 dark:focus:bg-orange-950"
+                >
+                  {isBlockLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Ban className="h-4 w-4 mr-2" />
+                  )}
+                  {isBlockLoading ? "Blocking..." : "Block User"}
+                </DropdownMenuItem>
+              </>
             )}
 
             <DropdownMenuSeparator />

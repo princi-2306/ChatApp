@@ -58,7 +58,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-  
+
   // NEW: Edit message states
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageContent, setEditingMessageContent] = useState("");
@@ -164,11 +164,11 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         const updatedMessages = prevMessages.map((msg) =>
           msg._id === messageId
             ? {
-                ...msg,
-                content: newContent,
-                isEdited: true,
-                editedAt: new Date(),
-              }
+              ...msg,
+              content: newContent,
+              isEdited: true,
+              editedAt: new Date(),
+            }
             : msg
         );
         return sortMessagesByTime(updatedMessages);
@@ -330,7 +330,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat
       ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) ||
-        null
+      null
       : null;
 
   const { initiateCall, acceptCall, rejectCall, endCall, toggleMute } =
@@ -389,6 +389,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       setLoading(false);
     }
   };
+  
 
   const sendMessage = async (files?: File[]) => {
     const filesToSend = files || selectedFiles;
@@ -401,6 +402,15 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     if (!currentChat?._id) {
       toast.error("No chat selected!");
       return;
+    }
+
+    // NEW: Check if trying to message a blocked user (for one-on-one chats)
+    if (!currentChat.isGroupChat && otherUser) {
+      const isBlocked = userPost.getState().isUserBlocked(otherUser._id.toString());
+      if (isBlocked) {
+        toast.error("You cannot send messages to a blocked user. Please unblock them first.");
+        return;
+      }
     }
 
     socket.emit("stop typing", {
@@ -436,14 +446,27 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       );
 
       socket.emit("new message", data.data);
-      
-      // FIXED: Add new message and maintain sort order
+
       setMessages((prevMessages) => sortMessagesByTime([...prevMessages, data.data]));
-    } catch (error) {
-      toast.error("Cannot send message!");
+    } catch (error: any) {
+      // Handle specific block error from backend (403 status)
+      if (error.response?.status === 403) {
+        const errorMessage = error.response?.data?.message || "You cannot send messages to this user";
+        toast.error(errorMessage);
+
+        // If user is blocked by the other person, navigate back
+        if (errorMessage.includes("blocked") && onBack) {
+          setTimeout(() => {
+            onBack();
+          }, 1500);
+        }
+      } else {
+        toast.error("Cannot send message!");
+      }
       console.log(error);
     }
   };
+
 
   const handleClearChat = async () => {
     if (!currentChat?._id) {
@@ -472,7 +495,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error clearing chat:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to clear chat. Please try again."
+        "Failed to clear chat. Please try again."
       );
       throw error;
     }
@@ -558,7 +581,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error leaving group:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to leave group. Please try again."
+        "Failed to leave group. Please try again."
       );
     }
   };
@@ -597,7 +620,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         console.log("Message received for different chat");
       } else {
         // FIXED: Add received message and maintain sort order
-        setMessages((prevMessages) => 
+        setMessages((prevMessages) =>
           sortMessagesByTime([...prevMessages, newMessageRecieved])
         );
       }
@@ -663,6 +686,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
           isMobile={isMobile}
           selectedFiles={selectedFiles}
           setSelectedFiles={setSelectedFiles}
+          currentChat={currentChat}  // NEW: Pass current chat
+          otherUser={otherUser}       // NEW: Pass other user
         />
 
         {showProfileModal &&

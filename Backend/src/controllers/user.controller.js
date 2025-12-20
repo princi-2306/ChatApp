@@ -318,10 +318,10 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     );
 });
 
+
+
 // get user accept current user
-
 const allUsers = asyncHandler(async (req, res) => {
-
     const { search } = req.query;
 
     // If no search query is provided, return empty array immediately
@@ -331,13 +331,29 @@ const allUsers = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, [], "Please provide a search query"));
     }
 
+    // Get current user with blocked users
+    const currentUser = await User.findById(req.user._id);
+    
+    // Get users who have blocked the current user
+    const usersWhoBlockedMe = await User.find({
+        blockedUsers: req.user._id
+    }).select('_id');
+    
+    const blockedByIds = usersWhoBlockedMe.map(u => u._id);
+
     const users = await User.find({
       $or: [
         { email: { $regex: search.trim(), $options: "i" } },
         { username: { $regex: search.trim(), $options: "i" } },
       ],
-      _id: { $ne: req.user._id }, // Exclude current user
-    }).select("-password"); // Exclude password field
+      _id: { 
+        $ne: req.user._id, // Exclude current user
+        $nin: [
+            ...currentUser.blockedUsers, // Exclude users I blocked
+            ...blockedByIds // Exclude users who blocked me
+        ]
+      },
+    }).select("-password -blockedUsers"); // Also hide blockedUsers array
 
     return res
       .status(200)

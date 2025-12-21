@@ -236,96 +236,100 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-  // Initialize socket
-  useEffect(() => {
-    socket = io(ENDPOINT);
-    socket.emit("setup", currentUser);
-    socket.on("connected", () => setSocketConnected(true));
 
-    socket.on("typing", ({ userId }) => {
-      if (userId !== currentUser?._id) {
-        setIsTyping(true);
-      }
+// In your ChatSection.tsx, update the socket listener for reactions
+// Find this section in your useEffect and UPDATE IT:
+
+useEffect(() => {
+  socket = io(ENDPOINT);
+  socket.emit("setup", currentUser);
+  socket.on("connected", () => setSocketConnected(true));
+
+  socket.on("typing", ({ userId }) => {
+    if (userId !== currentUser?._id) {
+      setIsTyping(true);
+    }
+  });
+
+  socket.on("stop typing", ({ userId }) => {
+    if (userId !== currentUser?._id) {
+      setIsTyping(false);
+    }
+  });
+
+  socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
+    setMessages((prevMessages) => {
+      const updatedMessages = prevMessages.map((msg) =>
+        msg._id === messageId
+          ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
+          : msg
+      );
+      return sortMessagesByTime(updatedMessages);
     });
+  });
 
-    socket.on("stop typing", ({ userId }) => {
-      if (userId !== currentUser?._id) {
-        setIsTyping(false);
+  // 🔥 FIX: Changed from "message reacted" to "message reaction"
+  socket.on("message reaction", ({ messageId, reactions }) => {
+    console.log("🎭 Socket: Received message reaction", { messageId, reactions });
+    setMessages((prevMessages) =>
+      prevMessages.map((msg) =>
+        msg._id === messageId ? { ...msg, reactions } : msg
+      )
+    );
+  });
+
+  socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
+    if (deletedBy !== currentUser?._id) {
+      deleteChat(chatId);
+      toast.info(
+        isGroupChat
+          ? "Group was deleted by admin"
+          : "Chat was deleted by the other user"
+      );
+      if (currentChat?._id === chatId && onBack) {
+        onBack();
       }
-    });
+    }
+  });
 
-    // NEW: Listen for message edits
-    socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
-      setMessages((prevMessages) => {
-        const updatedMessages = prevMessages.map((msg) =>
-          msg._id === messageId
-            ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
-            : msg
-        );
-        return sortMessagesByTime(updatedMessages);
+  socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
+    if (deletedBy !== currentUser?._id) {
+      deleteChat(groupId);
+      toast.info(`Group "${groupName}" was deleted by admin`);
+      if (currentChat?._id === groupId && onBack) {
+        onBack();
+      }
+    }
+  });
+
+  socket.on("new notification", ({ notification, chatId }) => {
+    addNotification(notification);
+    incrementUnreadForChat(
+      chatId,
+      notification.chat.chatName,
+      notification.chat.isGroupChat
+    );
+    fetchUnreadCount();
+
+    if (!currentChatCompare || currentChatCompare._id !== chatId) {
+      toast.info(`New message from ${notification.sender.username}`, {
+        description: notification.content,
+        duration: 3000,
       });
-    });
+    }
+  });
 
-    // NEW: Listen for message reactions
-    socket.on("message reacted", ({ messageId, reactions }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions } : msg
-        )
-      );
-    });
+  return () => {
+    socket.off("typing");
+    socket.off("stop typing");
+    socket.off("message edited");
+    socket.off("message reaction");  // 🔥 FIX: Updated event name
+    socket.off("new notification");
+    socket.off("chat deleted");
+    socket.off("group deleted");
+  };
+}, [currentUser]);
 
-    socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
-      if (deletedBy !== currentUser?._id) {
-        deleteChat(chatId);
-        toast.info(
-          isGroupChat
-            ? "Group was deleted by admin"
-            : "Chat was deleted by the other user"
-        );
-        if (currentChat?._id === chatId && onBack) {
-          onBack();
-        }
-      }
-    });
-
-    socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
-      if (deletedBy !== currentUser?._id) {
-        deleteChat(groupId);
-        toast.info(`Group "${groupName}" was deleted by admin`);
-        if (currentChat?._id === groupId && onBack) {
-          onBack();
-        }
-      }
-    });
-
-    socket.on("new notification", ({ notification, chatId }) => {
-      addNotification(notification);
-      incrementUnreadForChat(
-        chatId,
-        notification.chat.chatName,
-        notification.chat.isGroupChat
-      );
-      fetchUnreadCount();
-
-      if (!currentChatCompare || currentChatCompare._id !== chatId) {
-        toast.info(`New message from ${notification.sender.username}`, {
-          description: notification.content,
-          duration: 3000,
-        });
-      }
-    });
-
-    return () => {
-      socket.off("typing");
-      socket.off("stop typing");
-      socket.off("message edited");
-      socket.off("message reacted");
-      socket.off("new notification");
-      socket.off("chat deleted");
-      socket.off("group deleted");
-    };
-  }, [currentUser]);
 
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat

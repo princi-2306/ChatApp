@@ -78,10 +78,8 @@ const fetchChats = asyncHandler(async (req, res) => {
     // Filter out chats with blocked users (for one-on-one chats only)
     chats = chats.filter(chat => {
         if (chat.isGroupChat) {
-            // Keep all group chats
             return true;
         } else {
-            // For one-on-one chats, check if the other user is blocked
             const otherUser = chat.users.find(
                 user => user._id.toString() !== req.user._id.toString()
             );
@@ -90,7 +88,7 @@ const fetchChats = asyncHandler(async (req, res) => {
                 const isBlocked = allBlockedUserIds.some(
                     id => id.toString() === otherUser._id.toString()
                 );
-                return !isBlocked; // Keep chat only if user is not blocked
+                return !isBlocked;
             }
             return true;
         }
@@ -101,9 +99,18 @@ const fetchChats = asyncHandler(async (req, res) => {
       select: "username avatar email",
     });
 
+    // NEW: Add isMuted flag to each chat
+    const chatsWithMuteStatus = chats.map(chat => {
+      const chatObj = chat.toObject();
+      chatObj.isMuted = currentUser.mutedChats?.some(
+        id => id.toString() === chat._id.toString()
+      ) || false;
+      return chatObj;
+    });
+
     res
       .status(200)
-      .json(new ApiResponse(200, chats, "All chats fetched successfully!"));
+      .json(new ApiResponse(200, chatsWithMuteStatus, "All chats fetched successfully!"));
   } catch (error) {
     console.error("Fetch chats error:", error);
     res.status(500).json(new ApiResponse(500, null, "Failed to fetch chats"));
@@ -798,14 +805,179 @@ const isUserBlocked = asyncHandler(async (req, res) => {
 
 
 
+const muteChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+  const userId = req.user._id;
+
+  if (!chatId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Chat ID is required"));
+  }
+
+  try {
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
+    }
+
+    // Verify user is part of the chat
+    const isUserInChat = chat.users.some(
+      (user) => user.toString() === userId.toString()
+    );
+
+    if (!isUserInChat) {
+      return res
+        .status(403)
+        .json(
+          new ApiResponse(403, null, "You are not a member of this chat")
+        );
+    }
+
+    // Get user and update mutedChats
+    const user = await User.findById(userId);
+    
+    if (!user.mutedChats) {
+      user.mutedChats = [];
+    }
+
+    // Check if already muted
+    if (user.mutedChats.some(id => id.toString() === chatId.toString())) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "Chat is already muted"));
+    }
+
+    user.mutedChats.push(chatId);
+    await user.save();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted: true },
+          "Chat muted successfully. You will no longer receive notifications from this chat."
+        )
+      );
+  } catch (error) {
+    console.error("Error muting chat:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const unmuteChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+  const userId = req.user._id;
+
+  if (!chatId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Chat ID is required"));
+  }
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user.mutedChats || !user.mutedChats.some(id => id.toString() === chatId.toString())) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "Chat is not muted"));
+    }
+
+    user.mutedChats = user.mutedChats.filter(
+      (id) => id.toString() !== chatId.toString()
+    );
+    await user.save();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted: false },
+          "Chat unmuted successfully. You will now receive notifications from this chat."
+        )
+      );
+  } catch (error) {
+    console.error("Error unmuting chat:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const getMutedChats = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  try {
+    const user = await User.findById(userId).populate({
+      path: "mutedChats",
+      populate: [
+        { path: "users", select: "username avatar email" },
+        { path: "groupAdmin", select: "username avatar email" },
+        { path: "latestMessage" }
+      ]
+    });
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            mutedChats: user.mutedChats || [],
+            count: user.mutedChats?.length || 0
+          },
+          "Muted chats fetched successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error fetching muted chats:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const isChatMuted = asyncHandler(async (req, res) => {
+  const { chatId } = req.params;
+  const userId = req.user._id;
+
+  try {
+    const user = await User.findById(userId);
+    const isMuted = user.mutedChats?.some(id => id.toString() === chatId.toString()) || false;
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted },
+          isMuted ? "Chat is muted" : "Chat is not muted"
+        )
+      );
+  } catch (error) {
+    console.error("Error checking mute status:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+
+
 
 export {
   accessChat,
   fetchChats,
   createGroupChats,
   renameGroup,
-  updateGroupDetails,    // NEW EXPORT
-  removeGroupAvatar,     // NEW EXPORT
+  updateGroupDetails,    
+  removeGroupAvatar,     
   addToGroup,
   LeaveGroup,
   deleteChat,
@@ -814,5 +986,9 @@ export {
   clearChat,
   unblockUser,
   getBlockedUsers,
-  isUserBlocked
+  isUserBlocked,
+  muteChat,      // NEW
+  unmuteChat,    // NEW
+  getMutedChats, // NEW
+  isChatMuted    // NEW
 };

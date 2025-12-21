@@ -86,6 +86,14 @@ const createNotificationForUsers = async (message, chat, senderId) => {
 
     for (const userId of chat.users) {
       if (userId.toString() !== senderId.toString()) {
+        // NEW: Check if the user has muted this chat
+        const user = await User.findById(userId);
+        
+        if (user.mutedChats && user.mutedChats.some(id => id.toString() === chat._id.toString())) {
+          console.log(`User ${userId} has muted chat ${chat._id}, skipping notification`);
+          continue; // Skip creating notification for this user
+        }
+
         const notification = await Notification.create({
           recipient: userId,
           sender: senderId,
@@ -114,6 +122,7 @@ const createNotificationForUsers = async (message, chat, senderId) => {
     return [];
   }
 };
+
 
 const sendMessage = asyncHandler(async (req, res) => {
     const { content, chatId } = req.body;

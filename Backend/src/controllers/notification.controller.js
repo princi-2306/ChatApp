@@ -43,7 +43,8 @@ const getUnreadCount = asyncHandler(async (req, res) => {
   );
 });
 
-// Get unread message count per chat for sidebar
+
+
 const getUnreadMessageCountPerChat = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
 
@@ -51,13 +52,18 @@ const getUnreadMessageCountPerChat = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Unauthorized: No user found in request");
   }
 
-  // Aggregate unread notifications grouped by chat
+  // Get user's muted chats
+  const user = await User.findById(userId);
+  const mutedChatIds = user.mutedChats || [];
+
+  // Aggregate unread notifications grouped by chat, excluding muted chats
   const unreadCounts = await Notification.aggregate([
     {
       $match: {
         recipient: new mongoose.Types.ObjectId(userId),
         isRead: false,
-        type: { $in: ['new_message', 'group_message'] }
+        type: { $in: ['new_message', 'group_message'] },
+        chat: { $nin: mutedChatIds.map(id => new mongoose.Types.ObjectId(id)) } // Exclude muted chats
       }
     },
     {
@@ -107,6 +113,9 @@ const getUnreadMessageCountPerChat = asyncHandler(async (req, res) => {
     new ApiResponse(200, formattedCounts, "Unread message counts per chat fetched successfully")
   );
 });
+
+
+
 
 // Mark notification as read
 const markNotificationAsRead = asyncHandler(async (req, res) => {

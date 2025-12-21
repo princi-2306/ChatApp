@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import useChatStore from "@/components/store/chatStore";
 import { Chat } from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
+import { getMutedChats } from "@/lib/muteApi";
+
 
 const ChatList = ({ onChatSelect, selectedChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +37,30 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
   const deleteChats = useChatStore((state) => state.deleteChat);
   const currentChat = useChatStore((state) => state.currentChat);
   const updateChat = useChatStore((state) => state.updateChat);
+  const muteChat = useChatStore((state) => state.muteChat);
+  const setMutedChats = useChatStore((state) => state.setMutedChats);
+
+
+
+  const fetchMutedChats = async () => {
+  try {
+    if (!currentUser?.token) return;
+    
+    const response = await getMutedChats(currentUser.token);
+    const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
+    setMutedChats(mutedChatIds);
+    
+    // Update chat objects with mute status
+    setChats(chats.map(chat => ({
+      ...chat,
+      isMuted: mutedChatIds.includes(chat._id),
+      mute: mutedChatIds.includes(chat._id)
+    })));
+  } catch (error) {
+    console.error("Error fetching muted chats:", error);
+  }
+};
+
 
   // Notification store
   const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
@@ -206,6 +232,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     if (currentUser) {
       fetchChats();
       fetchUnreadCounts();
+      fetchMutedChats();
     }
   }, [currentUser]);
 

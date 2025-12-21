@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import useChatStore from "@/components/store/chatStore";
 import { blockUser } from "@/lib/blockUserApi";
+import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi"; // NEW IMPORT
 import userPost from "@/components/store/userStore";
 import { toast } from "sonner";
 import {
@@ -83,10 +84,13 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
 }) => {
 
   const [isBlockLoading, setIsBlockLoading] = useState(false);
+  const [isMuteLoading, setIsMuteLoading] = useState(false); // NEW
   
   const currentUser = userPost((state) => state.currentUser);
   const addBlockedUser = userPost((state) => state.addBlockedUser);
   const deleteChats = useChatStore((state) => state.deleteChat);
+  const muteChat = useChatStore((state) => state.muteChat); // NEW
+  const unmuteChat = useChatStore((state) => state.unmuteChat); // NEW
 
   const otherUser = chat.isGroupChat
     ? null
@@ -133,7 +137,7 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
   };
 
   const handleBlockUser = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent chat from opening
+    e.stopPropagation();
     
     if (!otherUser || !currentUser?.token || chat.isGroupChat) return;
 
@@ -141,17 +145,15 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
     try {
       const response = await blockUser(otherUser._id.toString(), currentUser.token);
       
-      // Add to blocked users store
       addBlockedUser({
         _id: otherUser._id,
         username: otherUser.username,
         avatar: otherUser.avatar || "",
-        email: "", // Not available in chat list, but required by type
+        email: "",
         password: "",
         token: "",
       });
       
-      // Delete the chat
       deleteChats(chat._id);
       
       toast.success(response.message || "User blocked successfully");
@@ -165,6 +167,39 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
     }
   };
 
+  // NEW: Handle mute/unmute
+  const handleToggleMute = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!currentUser?.token) return;
+
+    setIsMuteLoading(true);
+    try {
+      if (isMuted) {
+        // Unmute
+        await unmuteChatApi(chat._id, currentUser.token);
+        unmuteChat(chat._id);
+        toast.success("Chat unmuted. You will now receive notifications.");
+      } else {
+        // Mute
+        await muteChatApi(chat._id, currentUser.token);
+        muteChat(chat._id);
+        toast.success("Chat muted. You won't receive notifications.");
+      }
+      
+      // Call parent onMute if provided (for backward compatibility)
+      if (onMute) {
+        onMute();
+      }
+    } catch (error: any) {
+      console.error("Error toggling mute:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to toggle mute"
+      );
+    } finally {
+      setIsMuteLoading(false);
+    }
+  };
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors group">
@@ -200,7 +235,7 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
               )}
               {isMuted && (
                 <div title={getMuteExpiryText()}>
-                  <BellOff className="h-3 w-3 text-muted-foreground" />
+                  <BellOff className="h-3 w-3 text-orange-600" />
                 </div>
               )}
               {chat.isGroupChat && chat.groupAdmin?._id === loggedUser?._id && (
@@ -222,7 +257,7 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
             {unreadCount > 0 && isMuted && (
               <Badge
                 variant="outline"
-                className="h-5 min-w-[20px] flex items-center justify-center px-1.5 text-xs"
+                className="h-5 min-w-[20px] flex items-center justify-center px-1.5 text-xs border-orange-600 text-orange-600"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </Badge>
@@ -268,11 +303,20 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
               {chat.pinned ? "Unpin" : "Pin"}
             </DropdownMenuItem>
 
-            <DropdownMenuItem onClick={onMute}>
-              {isMuted ? (
+            {/* UPDATED: Mute option with loading state */}
+            <DropdownMenuItem 
+              onClick={handleToggleMute}
+              disabled={isMuteLoading}
+            >
+              {isMuteLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {isMuted ? "Unmuting..." : "Muting..."}
+                </>
+              ) : isMuted ? (
                 <>
                   <Volume2 className="h-4 w-4 mr-2" />
-                  Unmute
+                  Unmute notifications
                 </>
               ) : (
                 <>
@@ -296,7 +340,6 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
               </DropdownMenuItem>
             )}
 
-            {/* NEW: Block User Option (only for one-on-one chats) */}
             {!chat.isGroupChat && otherUser && (
               <>
                 <DropdownMenuSeparator />

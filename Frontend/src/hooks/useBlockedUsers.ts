@@ -2,7 +2,6 @@
 import { useEffect } from "react";
 import userPost from "@/components/store/userStore";
 import { getBlockedUsers } from "@/lib/blockUserApi";
-import { toast } from "sonner";
 
 /**
  * Custom hook to fetch and sync blocked users on app initialization

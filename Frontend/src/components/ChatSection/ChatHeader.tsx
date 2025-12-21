@@ -8,6 +8,8 @@ import {
   Trash2,
   Ban,
   ShieldCheck,
+  BellOff,
+  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +36,7 @@ import { Chat } from "@/components/store/chatStore";
 import userPost from "@/components/store/userStore";
 import useChatStore from "@/components/store/chatStore";
 import { blockUser, unblockUser, checkIfUserBlocked } from "@/lib/blockUserApi";
+import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi";
 import { toast } from "sonner";
 
 interface ChatHeaderProps {
@@ -68,11 +71,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [isClearing, setIsClearing] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockLoading, setIsBlockLoading] = useState(false);
+  const [isMuteLoading, setIsMuteLoading] = useState(false);
 
   const currentUser = userPost((state) => state.currentUser);
   const addBlockedUser = userPost((state) => state.addBlockedUser);
   const removeBlockedUser = userPost((state) => state.removeBlockedUser);
   const deleteChat = useChatStore((state) => state.deleteChat);
+  const muteChat = useChatStore((state) => state.muteChat);
+  const unmuteChat = useChatStore((state) => state.unmuteChat);
+
+  const isMuted = currentChat?.isMuted || currentChat?.mute;
 
   // Check block status when chat changes
   useEffect(() => {
@@ -154,6 +162,32 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     }
   };
 
+  const handleToggleMute = async () => {
+    if (!currentUser?.token) return;
+
+    setIsMuteLoading(true);
+    try {
+      if (isMuted) {
+        // Unmute
+        await unmuteChatApi(currentChat._id, currentUser.token);
+        unmuteChat(currentChat._id);
+        toast.success("Chat unmuted. You will now receive notifications.");
+      } else {
+        // Mute
+        await muteChatApi(currentChat._id, currentUser.token);
+        muteChat(currentChat._id);
+        toast.success("Chat muted. You won't receive notifications.");
+      }
+    } catch (error: any) {
+      console.error("Error toggling mute:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to toggle mute"
+      );
+    } finally {
+      setIsMuteLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="border-b">
@@ -215,9 +249,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </AvatarFallback>
               </Avatar>
               <div className="cursor-pointer" onClick={onViewProfile}>
-                <h3 className="font-semibold">
-                  {currentChat.isGroupChat ? currentChat.chatName : otherUser?.username}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">
+                    {currentChat.isGroupChat ? currentChat.chatName : otherUser?.username}
+                  </h3>
+                  {isMuted && (
+                    <div className="flex items-center gap-1 text-orange-600" title="Notifications muted">
+                      <BellOff className="h-3.5 w-3.5" />
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {currentChat.isGroupChat ? (
                     `${currentChat.users?.length || 0} members`
@@ -266,8 +307,23 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     View {currentChat.isGroupChat ? "Group" : "Profile"}
                   </DropdownMenuItem>
                   
-                  <DropdownMenuItem>
-                    Mute Notifications
+                  <DropdownMenuItem 
+                    onClick={handleToggleMute}
+                    disabled={isMuteLoading}
+                  >
+                    {isMuteLoading ? (
+                      "Loading..."
+                    ) : isMuted ? (
+                      <>
+                        <Volume2 className="mr-2 h-4 w-4" />
+                        Unmute Notifications
+                      </>
+                    ) : (
+                      <>
+                        <BellOff className="mr-2 h-4 w-4" />
+                        Mute Notifications
+                      </>
+                    )}
                   </DropdownMenuItem>
                   
                   <DropdownMenuItem onClick={() => setShowClearDialog(true)}>

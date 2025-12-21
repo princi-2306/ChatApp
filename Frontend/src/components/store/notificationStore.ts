@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import useChatStore from './chatStore';
 
 export interface Notification {
   _id: string;
@@ -115,8 +116,18 @@ const useNotificationStore = create<NotificationStore>((set) => ({
   clearNotifications: () =>
     set({ notifications: [], unreadCount: 0, unreadPerChat: {} }),
 
-  incrementUnreadForChat: (chatId, chatName, isGroupChat) =>
-    set((state) => ({
+  // The backend already handles this, but for extra safety on frontend:
+incrementUnreadForChat: (chatId, chatName, isGroupChat) =>
+  set((state) => {
+    // Check if chat is muted (this is optional since backend handles it)
+    const isMuted = useChatStore.getState().isChatMuted(chatId);
+    
+    if (isMuted) {
+      console.log(`Chat ${chatId} is muted, skipping notification increment`);
+      return state; // Don't increment if muted
+    }
+    
+    return {
       unreadPerChat: {
         ...state.unreadPerChat,
         [chatId]: {
@@ -126,7 +137,8 @@ const useNotificationStore = create<NotificationStore>((set) => ({
           isGroupChat,
         },
       },
-    })),
+    };
+  }),
 
   clearUnreadForChat: (chatId) =>
     set((state) => {

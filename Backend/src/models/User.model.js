@@ -36,10 +36,15 @@ const userSchema = new Schema({
     refreshToken:{
         type: String
     },
-    // NEW: Blocked users array
+    // Blocked users array
     blockedUsers: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"
+    }],
+    // NEW: Muted chats array
+    mutedChats: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Chat"
     }],
     cartData:{
         type: Object,

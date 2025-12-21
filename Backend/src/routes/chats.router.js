@@ -13,10 +13,14 @@ import {
     deleteChat,
     togglePin,
     blockUser,
-    unblockUser,           // NEW
-    getBlockedUsers,       // NEW
-    isUserBlocked,         // NEW
-    clearChat
+    unblockUser,
+    getBlockedUsers,
+    isUserBlocked,
+    clearChat,
+    muteChat,      // NEW
+    unmuteChat,    // NEW
+    getMutedChats, // NEW
+    isChatMuted    // NEW
 } from "../controllers/chat.controller.js";
 
 const chatRouter = Router();
@@ -62,9 +66,15 @@ chatRouter.route("/toggle-pin").put(verifyJWT, togglePin);
 
 // Block/Unblock user routes
 chatRouter.route("/block-user").put(verifyJWT, blockUser);
-chatRouter.route("/unblock-user").put(verifyJWT, unblockUser);           // NEW
-chatRouter.route("/blocked-users").get(verifyJWT, getBlockedUsers);      // NEW
-chatRouter.route("/is-blocked/:userId").get(verifyJWT, isUserBlocked);   // NEW
+chatRouter.route("/unblock-user").put(verifyJWT, unblockUser);
+chatRouter.route("/blocked-users").get(verifyJWT, getBlockedUsers);
+chatRouter.route("/is-blocked/:userId").get(verifyJWT, isUserBlocked);
+
+// NEW: Mute/Unmute chat routes
+chatRouter.route("/mute-chat").put(verifyJWT, muteChat);
+chatRouter.route("/unmute-chat").put(verifyJWT, unmuteChat);
+chatRouter.route("/muted-chats").get(verifyJWT, getMutedChats);
+chatRouter.route("/is-muted/:chatId").get(verifyJWT, isChatMuted);
 
 // Leave group
 chatRouter.route("/group-leave").put(verifyJWT, LeaveGroup);

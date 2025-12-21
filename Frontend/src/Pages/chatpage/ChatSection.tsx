@@ -35,6 +35,15 @@ interface ChatSectionProps {
   onBack?: () => void;
 }
 
+// HELPER FUNCTION: Sort messages by creation time (oldest first)
+const sortMessagesByTime = (messages: Message[]): Message[] => {
+  return [...messages].sort((a, b) => {
+    const timeA = new Date(a.createdAt).getTime();
+    const timeB = new Date(b.createdAt).getTime();
+    return timeA - timeB; // Ascending order (oldest first)
+  });
+};
+
 const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -49,7 +58,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-  
+
   // NEW: Edit message states
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageContent, setEditingMessageContent] = useState("");
@@ -150,19 +159,20 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         config
       );
 
-      // Update local messages
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
+      // Update local messages and maintain sort order
+      setMessages((prevMessages) => {
+        const updatedMessages = prevMessages.map((msg) =>
           msg._id === messageId
             ? {
-                ...msg,
-                content: newContent,
-                isEdited: true,
-                editedAt: new Date(),
-              }
+              ...msg,
+              content: newContent,
+              isEdited: true,
+              editedAt: new Date(),
+            }
             : msg
-        )
-      );
+        );
+        return sortMessagesByTime(updatedMessages);
+      });
 
       // Emit socket event
       if (socket && socketConnected && currentChat) {
@@ -204,7 +214,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       // Update local messages with new reactions
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions: data.data } : msg
+          msg._id === messageId ? { ...msg, reactions: data.data.reactions } : msg
         )
       );
 
@@ -212,7 +222,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       if (socket && socketConnected && currentChat) {
         socket.emit("react to message", {
           messageId,
-          reactions: data.data,
+          reactions: data.data.reactions,
           chatId: currentChat._id,
           userId: currentUser?._id,
           emoji,
@@ -226,100 +236,105 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-  // Initialize socket
-  useEffect(() => {
-    socket = io(ENDPOINT);
-    socket.emit("setup", currentUser);
-    socket.on("connected", () => setSocketConnected(true));
 
-    socket.on("typing", ({ userId }) => {
-      if (userId !== currentUser?._id) {
-        setIsTyping(true);
-      }
-    });
+// In your ChatSection.tsx, update the socket listener for reactions
+// Find this section in your useEffect and UPDATE IT:
 
-    socket.on("stop typing", ({ userId }) => {
-      if (userId !== currentUser?._id) {
-        setIsTyping(false);
-      }
-    });
+useEffect(() => {
+  socket = io(ENDPOINT);
+  socket.emit("setup", currentUser);
+  socket.on("connected", () => setSocketConnected(true));
 
-    // NEW: Listen for message edits
-    socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === messageId
-            ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
-            : msg
-        )
+  socket.on("typing", ({ userId }) => {
+    if (userId !== currentUser?._id) {
+      setIsTyping(true);
+    }
+  });
+
+  socket.on("stop typing", ({ userId }) => {
+    if (userId !== currentUser?._id) {
+      setIsTyping(false);
+    }
+  });
+
+  socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
+    setMessages((prevMessages) => {
+      const updatedMessages = prevMessages.map((msg) =>
+        msg._id === messageId
+          ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
+          : msg
       );
+      return sortMessagesByTime(updatedMessages);
     });
+  });
 
-    // NEW: Listen for message reactions
-    socket.on("message reaction", ({ messageId, reactions }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions } : msg
-        )
+  // 🔥 FIX: Changed from "message reacted" to "message reaction"
+  socket.on("message reaction", ({ messageId, reactions }) => {
+    console.log("🎭 Socket: Received message reaction", { messageId, reactions });
+    setMessages((prevMessages) =>
+      prevMessages.map((msg) =>
+        msg._id === messageId ? { ...msg, reactions } : msg
+      )
+    );
+  });
+
+  socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
+    if (deletedBy !== currentUser?._id) {
+      deleteChat(chatId);
+      toast.info(
+        isGroupChat
+          ? "Group was deleted by admin"
+          : "Chat was deleted by the other user"
       );
-    });
-
-    socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
-      if (deletedBy !== currentUser?._id) {
-        deleteChat(chatId);
-        toast.info(
-          isGroupChat
-            ? "Group was deleted by admin"
-            : "Chat was deleted by the other user"
-        );
-        if (currentChat?._id === chatId && onBack) {
-          onBack();
-        }
+      if (currentChat?._id === chatId && onBack) {
+        onBack();
       }
-    });
+    }
+  });
 
-    socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
-      if (deletedBy !== currentUser?._id) {
-        deleteChat(groupId);
-        toast.info(`Group "${groupName}" was deleted by admin`);
-        if (currentChat?._id === groupId && onBack) {
-          onBack();
-        }
+  socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
+    if (deletedBy !== currentUser?._id) {
+      deleteChat(groupId);
+      toast.info(`Group "${groupName}" was deleted by admin`);
+      if (currentChat?._id === groupId && onBack) {
+        onBack();
       }
-    });
+    }
+  });
 
-    socket.on("new notification", ({ notification, chatId }) => {
-      addNotification(notification);
-      incrementUnreadForChat(
-        chatId,
-        notification.chat.chatName,
-        notification.chat.isGroupChat
-      );
-      fetchUnreadCount();
+  socket.on("new notification", ({ notification, chatId }) => {
+    addNotification(notification);
+    incrementUnreadForChat(
+      chatId,
+      notification.chat.chatName,
+      notification.chat.isGroupChat
+    );
+    fetchUnreadCount();
 
-      if (!currentChatCompare || currentChatCompare._id !== chatId) {
-        toast.info(`New message from ${notification.sender.username}`, {
-          description: notification.content,
-          duration: 3000,
-        });
-      }
-    });
+    if (!currentChatCompare || currentChatCompare._id !== chatId) {
+      toast.info(`New message from ${notification.sender.username}`, {
+        description: notification.content,
+        duration: 3000,
+      });
+    }
+  });
 
-    return () => {
-      socket.off("typing");
-      socket.off("stop typing");
-      socket.off("message edited");
-      socket.off("message reaction");
-      socket.off("new notification");
-      socket.off("chat deleted");
-      socket.off("group deleted");
-    };
-  }, [currentUser]);
+  return () => {
+    socket.off("typing");
+    socket.off("stop typing");
+    socket.off("message edited");
+    socket.off("message reaction");  // 🔥 FIX: Updated event name
+    socket.off("new notification");
+    socket.off("chat deleted");
+    socket.off("group deleted");
+  };
+}, [currentUser]);
+
 
   const otherUser: User | null =
     currentChat && !currentChat.isGroupChat
       ? currentChat?.users?.find((u: User) => u._id !== currentUser?._id) ||
-        null
+      null
       : null;
 
   const { initiateCall, acceptCall, rejectCall, endCall, toggleMute } =
@@ -366,15 +381,19 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         config
       );
 
-      setMessages(data.data);
+      // FIXED: Sort messages after fetching
+      const sortedMessages = sortMessagesByTime(data.data);
+      setMessages(sortedMessages);
       setLoading(false);
 
       socket.emit("join chat", currentChat?._id);
     } catch (error) {
       toast.error("Unable to fetch chats with this user");
       console.log(error);
+      setLoading(false);
     }
   };
+  
 
   const sendMessage = async (files?: File[]) => {
     const filesToSend = files || selectedFiles;
@@ -387,6 +406,15 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     if (!currentChat?._id) {
       toast.error("No chat selected!");
       return;
+    }
+
+    // NEW: Check if trying to message a blocked user (for one-on-one chats)
+    if (!currentChat.isGroupChat && otherUser) {
+      const isBlocked = userPost.getState().isUserBlocked(otherUser._id.toString());
+      if (isBlocked) {
+        toast.error("You cannot send messages to a blocked user. Please unblock them first.");
+        return;
+      }
     }
 
     socket.emit("stop typing", {
@@ -422,12 +450,27 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       );
 
       socket.emit("new message", data.data);
-      setMessages([...messages, data.data]);
-    } catch (error) {
-      toast.error("Cannot send message!");
+
+      setMessages((prevMessages) => sortMessagesByTime([...prevMessages, data.data]));
+    } catch (error: any) {
+      // Handle specific block error from backend (403 status)
+      if (error.response?.status === 403) {
+        const errorMessage = error.response?.data?.message || "You cannot send messages to this user";
+        toast.error(errorMessage);
+
+        // If user is blocked by the other person, navigate back
+        if (errorMessage.includes("blocked") && onBack) {
+          setTimeout(() => {
+            onBack();
+          }, 1500);
+        }
+      } else {
+        toast.error("Cannot send message!");
+      }
       console.log(error);
     }
   };
+
 
   const handleClearChat = async () => {
     if (!currentChat?._id) {
@@ -456,7 +499,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error clearing chat:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to clear chat. Please try again."
+        "Failed to clear chat. Please try again."
       );
       throw error;
     }
@@ -480,7 +523,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       return contentMatch || attachmentMatch;
     });
 
-    setFilteredMessages(filtered);
+    // FIXED: Sort filtered messages too
+    setFilteredMessages(sortMessagesByTime(filtered));
   };
 
   const handleEditGroup = async (group: Chat) => {
@@ -541,7 +585,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       console.error("Error leaving group:", error);
       toast.error(
         error.response?.data?.message ||
-          "Failed to leave group. Please try again."
+        "Failed to leave group. Please try again."
       );
     }
   };
@@ -579,7 +623,10 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       ) {
         console.log("Message received for different chat");
       } else {
-        setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
+        // FIXED: Add received message and maintain sort order
+        setMessages((prevMessages) =>
+          sortMessagesByTime([...prevMessages, newMessageRecieved])
+        );
       }
     });
 
@@ -643,6 +690,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
           isMobile={isMobile}
           selectedFiles={selectedFiles}
           setSelectedFiles={setSelectedFiles}
+          currentChat={currentChat}  // NEW: Pass current chat
+          otherUser={otherUser}       // NEW: Pass other user
         />
 
         {showProfileModal &&

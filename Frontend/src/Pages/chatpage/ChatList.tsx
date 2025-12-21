@@ -1,40 +1,66 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
   Loader,
-  MessageCircleMore,
   Search,
   UserPlus,
-  X,
   Users,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ChatListCard from "../Cards/ChatListCard";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import AddUser from "../Cards/AddUser";
 import CreateGroup from "../Cards/CreateGroup";
+import BlockedUsersList from "../../components/ChatSection/BlockedUsersList"; // NEW IMPORT
 import userPost, { User } from "@/components/store/userStore";
 import axios from "axios";
 import { toast } from "sonner";
 import useChatStore from "@/components/store/chatStore";
 import { Chat } from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
+import { getMutedChats } from "@/lib/muteApi";
+
 
 const ChatList = ({ onChatSelect, selectedChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false); // NEW STATE
   const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
 
   const currentUser = userPost((state) => state.currentUser);
+  const blockedUsers = userPost((state) => state.blockedUsers); // NEW
   const setChats = useChatStore((state) => state.setChats);
   const chats = useChatStore((state) => state.chats);
   const deleteChats = useChatStore((state) => state.deleteChat);
   const currentChat = useChatStore((state) => state.currentChat);
   const updateChat = useChatStore((state) => state.updateChat);
+  const muteChat = useChatStore((state) => state.muteChat);
+  const setMutedChats = useChatStore((state) => state.setMutedChats);
+
+
+
+  const fetchMutedChats = async () => {
+  try {
+    if (!currentUser?.token) return;
+    
+    const response = await getMutedChats(currentUser.token);
+    const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
+    setMutedChats(mutedChatIds);
+    
+    // Update chat objects with mute status
+    setChats(chats.map(chat => ({
+      ...chat,
+      isMuted: mutedChatIds.includes(chat._id),
+      mute: mutedChatIds.includes(chat._id)
+    })));
+  } catch (error) {
+    console.error("Error fetching muted chats:", error);
+  }
+};
+
 
   // Notification store
   const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
@@ -64,7 +90,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     );
   });
 
-  // UPDATED: Proper togglePin function with backend integration
   const togglePin = async (chatId: string) => {
     try {
       const token = localStorage.getItem("tokens");
@@ -82,7 +107,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
 
       const { chat, action } = response.data.data;
 
-      // Update the chat in the store
       updateChat(chat);
 
       toast.success(`Chat ${action} successfully!`);
@@ -149,7 +173,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       deleteChats(chatId);
 
       if (currentChat?._id === chatId) {
-        onChatSelect(null); // if user in chat-section when chat gets deleted
+        onChatSelect(null);
       }
 
       console.log("chat deleted : ", response.data);
@@ -161,7 +185,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     }
   };
 
-  // Clear chat messages (without deleting the chat)
   const clearChat = async (chatId: string) => {
     try {
       const config = {
@@ -174,9 +197,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
         `http://localhost:8000/api/v1/chats/clear-chat/${chatId}`,
         config
       );
-
-      // Update the chat to clear latestMessage
-      // updateChat();
 
       toast.success(response.data.message || "Chat cleared successfully!");
     } catch (error: any) {
@@ -212,6 +232,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     if (currentUser) {
       fetchChats();
       fetchUnreadCounts();
+      fetchMutedChats();
     }
   }, [currentUser]);
 
@@ -256,9 +277,28 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
               variant="ghost"
               size="icon"
               onClick={() => setShowAddPanel(true)}
+              title="Add User"
             >
-              <UserPlus />
+              <UserPlus className="h-4 w-4" />
             </Button>
+            
+            {/* NEW: Blocked Users Button */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowBlockedUsers(true)}
+                title="Blocked Users"
+                className="hover:bg-orange-50 dark:hover:bg-orange-950"
+              > 
+                <Ban className="h-4 w-4 text-orange-600" />
+              </Button>
+              {blockedUsers.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-orange-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                  {blockedUsers.length > 9 ? "9+" : blockedUsers.length}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -356,6 +396,12 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       {showCreateGroup && (
         <CreateGroup onClose={() => setShowCreateGroup(false)} />
       )}
+      
+      {/* NEW: Blocked Users Modal */}
+      <BlockedUsersList 
+        open={showBlockedUsers}
+        onOpenChange={setShowBlockedUsers}
+      />
     </div>
   );
 };

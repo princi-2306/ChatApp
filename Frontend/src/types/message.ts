@@ -11,11 +11,15 @@ export interface Attachment {
 }
 
 export interface Reaction {
-  _id?: string;
-  user: User;
+  user: {
+    _id: string;
+    username: string;
+    avatar?: string;
+  };
   emoji: string;
-  reactedAt: Date;
+  reactedAt: Date | string;
 }
+
 
 export interface EditHistory {
   content: string;
@@ -24,17 +28,32 @@ export interface EditHistory {
 
 export interface Message {
   _id: string;
-  sender: User;
+  sender: {
+    _id: string;
+    username: string;
+    avatar?: string;
+    email?: string;
+  };
   content: string;
-  chat: Chat;
+  chat: {
+    _id: string;
+    chatName?: string;
+    isGroupChat?: boolean;
+    users?: Array<{
+      _id: string;
+      username: string;
+      avatar?: string;
+    }>;
+  };
   attachments?: Attachment[];
-  isEdited?: boolean;
-  editedAt?: Date;
-  editHistory?: EditHistory[];
   reactions?: Reaction[];
-  createdAt: Date;
-  updatedAt: Date;
+  isEdited?: boolean;
+  editedAt?: Date | string;
+  editHistory?: EditHistory[];
+  createdAt: Date | string;
+  updatedAt?: Date | string;
 }
+
 
 export interface MessageWithCanEdit extends Message {
   canBeEdited: boolean;

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Mail,
-  Phone,
-  MapPin,
   Calendar,
   UserCircle,
   MessageSquare,
   Ban,
-  Flag,
+  ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { User } from "@/components/store/userStore";
+import userPost from "@/components/store/userStore";
+import useChatStore from "@/components/store/chatStore";
+import { blockUser, unblockUser, checkIfUserBlocked } from "@/lib/blockUserApi";
+import { toast } from "sonner";
 
 interface UserProfileModalProps {
   open: boolean;
@@ -33,6 +36,38 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   user,
   formatTime,
 }) => {
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  const currentUser = userPost((state) => state.currentUser);
+  const addBlockedUser = userPost((state) => state.addBlockedUser);
+  const removeBlockedUser = userPost((state) => state.removeBlockedUser);
+  const deleteChat = useChatStore((state) => state.deleteChat);
+  const chats = useChatStore((state) => state.chats);
+
+  // Check if user is blocked when modal opens
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (open && user && currentUser?.token) {
+        setIsCheckingStatus(true);
+        try {
+          const response = await checkIfUserBlocked(
+            user._id.toString(),
+            currentUser.token
+          );
+          setIsBlocked(response.data.isBlocked || false);
+        } catch (error) {
+          console.error("Error checking block status:", error);
+        } finally {
+          setIsCheckingStatus(false);
+        }
+      }
+    };
+
+    checkBlockStatus();
+  }, [open, user, currentUser?.token]);
+
   // Clean up body styles when component unmounts
   useEffect(() => {
     return () => {
@@ -44,7 +79,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // Ensure body is clickable when modal closes
   useEffect(() => {
     if (!open) {
-      // Small delay to ensure Dialog cleanup completes
       const timer = setTimeout(() => {
         document.body.style.pointerEvents = '';
         document.body.style.overflow = '';
@@ -65,6 +99,50 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const handleClose = () => {
     onOpenChange(false);
+  };
+
+  const handleBlockUnblock = async () => {
+    if (!currentUser?.token || !user) return;
+
+    setIsLoading(true);
+    try {
+      if (isBlocked) {
+        // Unblock user
+        const response = await unblockUser(user._id.toString(), currentUser.token);
+        removeBlockedUser(user._id.toString());
+        setIsBlocked(false);
+        toast.success(response.message || "User unblocked successfully");
+      } else {
+        // Block user
+        const response = await blockUser(user._id.toString(), currentUser.token);
+        addBlockedUser(user);
+        setIsBlocked(true);
+        
+        // Delete the chat with this user if it exists
+        const chatToDelete = chats.find(
+          (chat) =>
+            !chat.isGroupChat &&
+            chat.users?.some((u) => u._id.toString() === user._id.toString())
+        );
+        
+        if (chatToDelete) {
+          deleteChat(chatToDelete._id);
+        }
+        
+        toast.success(response.message || "User blocked successfully");
+        
+        // Close modal after blocking
+        handleClose();
+      }
+    } catch (error: any) {
+      console.error("Error blocking/unblocking user:", error);
+      toast.error(
+        error.response?.data?.message || 
+        `Failed to ${isBlocked ? "unblock" : "block"} user`
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -124,18 +202,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
             )}
 
-            {user.phone && (
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Phone className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="text-sm font-medium">{user.phone}</p>
-                </div>
-              </div>
-            )}
-
             {user.bio && (
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -144,18 +210,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">Bio</p>
                   <p className="text-sm font-medium">{user.bio}</p>
-                </div>
-              </div>
-            )}
-
-            {user.location && (
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <MapPin className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">Location</p>
-                  <p className="text-sm font-medium">{user.location}</p>
                 </div>
               </div>
             )}
@@ -177,24 +231,42 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           {/* Action Buttons */}
           <div className="space-y-2">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={handleClose}
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Send Message
-            </Button>
+            {!isBlocked && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleClose}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Send Message
+              </Button>
+            )}
 
             <Button
               variant="outline"
-              className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
-              onClick={handleClose}
+              className={`w-full justify-start ${
+                isBlocked
+                  ? "text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                  : "text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
+              }`}
+              onClick={handleBlockUnblock}
+              disabled={isLoading || isCheckingStatus}
             >
-              <Ban className="h-4 w-4 mr-2" />
-              Block User
+              {isLoading || isCheckingStatus ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : isBlocked ? (
+                <ShieldCheck className="h-4 w-4 mr-2" />
+              ) : (
+                <Ban className="h-4 w-4 mr-2" />
+              )}
+              {isCheckingStatus 
+                ? "Checking..." 
+                : isLoading 
+                ? (isBlocked ? "Unblocking..." : "Blocking...") 
+                : isBlocked 
+                ? "Unblock User" 
+                : "Block User"}
             </Button>
-
           </div>
         </div>
       </DialogContent>

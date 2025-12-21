@@ -2,10 +2,9 @@ import React, { useRef, useEffect, useState } from "react";
 import { Loader, File, Download } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { User } from "@/components/store/userStore";
-import { Chat } from "@/components/store/chatStore";
 import MessageActions from "./MessageActions";
 import MessageReactions from "./MessageReactions";
-import { Message, Reaction } from "@/types/message";
+import { Message } from "@/types/message";
 
 interface MessageListProps {
   messages: Message[];
@@ -72,6 +71,16 @@ const MessageList: React.FC<MessageListProps> = ({
     return timeSinceSent <= fiveMinutes;
   };
 
+  const handleReact = (messageId: string, emoji: string) => {
+    console.log("MessageList: Reacting to message", messageId, "with", emoji);
+    onReactToMessage(messageId, emoji);
+  };
+
+  const handleEdit = (messageId: string, content: string) => {
+    console.log("MessageList: Editing message", messageId);
+    onEditMessage(messageId, content);
+  };
+
   return (
     <div className="flex-1 overflow-hidden">
       <ScrollArea className="h-full p-4">
@@ -85,29 +94,28 @@ const MessageList: React.FC<MessageListProps> = ({
               {messages.map((msg) => {
                 const isMe = msg.sender?._id === currentUser?._id;
                 const canEdit = canEditMessage(msg);
-                const showActions =
-                  hoveredMessageId === msg._id && (canEdit || true); // Always show for reactions
+                const isHovered = hoveredMessageId === msg._id;
 
                 return (
                   <div
                     key={msg._id}
-                    className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                    className={`flex ${isMe ? "justify-end" : "justify-start"} group`}
                     onMouseEnter={() => setHoveredMessageId(msg._id)}
                     onMouseLeave={() => setHoveredMessageId(null)}
                   >
                     <div className="relative max-w-xs lg:max-w-md">
-                      {/* Message Actions (Edit/React) */}
-                      {showActions && (
+                      {/* Message Actions (Edit/React) - Show on hover */}
+                      {isHovered && (
                         <div
-                          className={`absolute -top-8 ${
+                          className={`absolute -top-10 ${
                             isMe ? "right-0" : "left-0"
-                          } z-10`}
+                          } z-50`}
                         >
                           <MessageActions
                             messageId={msg._id}
                             canEdit={canEdit}
-                            onEdit={() => onEditMessage(msg._id, msg.content)}
-                            onReact={(emoji) => onReactToMessage(msg._id, emoji)}
+                            onEdit={() => handleEdit(msg._id, msg.content)}
+                            onReact={(emoji) => handleReact(msg._id, emoji)}
                           />
                         </div>
                       )}
@@ -121,15 +129,15 @@ const MessageList: React.FC<MessageListProps> = ({
                         }`}
                       >
                         {/* Sender Name (for group chats or received messages) */}
-                        {msg.content && !isMe && (
-                          <p className="text-sm font-semibold text-zinc-500 mb-1">
+                        {!isMe && msg.content && (
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">
                             {msg.sender.username}
                           </p>
                         )}
 
                         {/* Text Content */}
                         {msg.content && (
-                          <p className="text-sm whitespace-pre-wrap mb-2">
+                          <p className="text-sm whitespace-pre-wrap break-words">
                             {searchQuery
                               ? highlightText(msg.content, searchQuery)
                               : msg.content}
@@ -200,29 +208,27 @@ const MessageList: React.FC<MessageListProps> = ({
                           </div>
                         )}
 
-                        {/* Reactions */}
-                        <MessageReactions
-                          reactions={msg.reactions || []}
-                          currentUserId={currentUser?._id}
-                          onReactionClick={(emoji) =>
-                            onReactToMessage(msg._id, emoji)
-                          }
-                        />
+                        {/* Message Reactions */}
+                        {msg.reactions && msg.reactions.length > 0 && (
+                          <MessageReactions
+                            reactions={msg.reactions}
+                            currentUserId={currentUser?._id}
+                            onReactionClick={(emoji) => handleReact(msg._id, emoji)}
+                          />
+                        )}
 
                         {/* Timestamp and Edited Tag */}
                         <div
-                          className={`flex items-center justify-end gap-2 mt-1 ${
+                          className={`flex items-center justify-end gap-2 mt-1 text-xs ${
                             isMe
                               ? "text-primary-foreground/70"
                               : "text-muted-foreground"
                           }`}
                         >
                           {msg.isEdited && (
-                            <span className="text-xs italic">edited</span>
+                            <span className="italic">edited</span>
                           )}
-                          <span className="text-xs">
-                            {formatTime(msg.createdAt)}
-                          </span>
+                          <span>{formatTime(msg.createdAt)}</span>
                         </div>
                       </div>
                     </div>

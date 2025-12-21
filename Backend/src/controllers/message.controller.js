@@ -70,6 +70,9 @@ const markMessagesAsSeen = asyncHandler(async (req, res) => {
     return res.status(200).json({ success: true, message: "Message marked as seen" });
 });
 
+
+
+// Helper function remains the same
 const createNotificationForUsers = async (message, chat, senderId) => {
   try {
     const notifications = [];
@@ -83,6 +86,14 @@ const createNotificationForUsers = async (message, chat, senderId) => {
 
     for (const userId of chat.users) {
       if (userId.toString() !== senderId.toString()) {
+        // NEW: Check if the user has muted this chat
+        const user = await User.findById(userId);
+        
+        if (user.mutedChats && user.mutedChats.some(id => id.toString() === chat._id.toString())) {
+          console.log(`User ${userId} has muted chat ${chat._id}, skipping notification`);
+          continue; // Skip creating notification for this user
+        }
+
         const notification = await Notification.create({
           recipient: userId,
           sender: senderId,
@@ -112,6 +123,7 @@ const createNotificationForUsers = async (message, chat, senderId) => {
   }
 };
 
+
 const sendMessage = asyncHandler(async (req, res) => {
     const { content, chatId } = req.body;
     const files = req.files;
@@ -135,6 +147,34 @@ const sendMessage = asyncHandler(async (req, res) => {
 
     if (!isUserInChat) {
         throw new ApiError(403, "You are not a member of this chat!");
+    }
+
+    // NEW: Check if messaging blocked users (for one-on-one chats)
+    if (!chat.isGroupChat) {
+        const otherUser = chat.users.find(
+            user => user._id.toString() !== req.user._id.toString()
+        );
+
+        if (otherUser) {
+            const currentUser = await User.findById(req.user._id);
+            const otherUserDoc = await User.findById(otherUser._id);
+
+            // Check if current user has blocked the other user
+            if (currentUser.blockedUsers.includes(otherUser._id)) {
+                throw new ApiError(
+                    403,
+                    "You cannot send messages to a blocked user. Please unblock them first."
+                );
+            }
+
+            // Check if other user has blocked current user
+            if (otherUserDoc.blockedUsers.includes(req.user._id)) {
+                throw new ApiError(
+                    403,
+                    "You cannot send messages to this user."
+                );
+            }
+        }
     }
 
     const newMessage = {
@@ -204,7 +244,7 @@ const sendMessage = asyncHandler(async (req, res) => {
         return res.status(200).json(new ApiResponse(200, message, "Message sent!"));
     } catch (error) {
         console.error("Send message error:", error);
-        throw new ApiError(400, "Unable to send message");
+        throw new ApiError(400, error.message || "Unable to send message");
     }
 });
 
@@ -362,6 +402,10 @@ const getEditHistory = asyncHandler(async (req, res) => {
         }, "Edit history fetched successfully")
     );
 });
+
+
+
+
 
 export {
     getUserForSidebar,

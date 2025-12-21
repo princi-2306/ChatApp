@@ -50,8 +50,23 @@ const accessChat = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, FullChat, "Chats created successfully!"));
 });
 
+
 const fetchChats = asyncHandler(async (req, res) => {
   try {
+    // Get current user with blocked users
+    const currentUser = await User.findById(req.user._id);
+    
+    // Get users who have blocked the current user
+    const usersWhoBlockedMe = await User.find({
+        blockedUsers: req.user._id
+    }).select('_id');
+    
+    const blockedByIds = usersWhoBlockedMe.map(u => u._id);
+    const allBlockedUserIds = [
+        ...currentUser.blockedUsers,
+        ...blockedByIds
+    ];
+
     let chats = await Chat.find({
       users: { $elemMatch: { $eq: req.user._id } },
     })
@@ -60,18 +75,48 @@ const fetchChats = asyncHandler(async (req, res) => {
       .populate("latestMessage")
       .sort({ updatedAt: -1 });
 
+    // Filter out chats with blocked users (for one-on-one chats only)
+    chats = chats.filter(chat => {
+        if (chat.isGroupChat) {
+            return true;
+        } else {
+            const otherUser = chat.users.find(
+                user => user._id.toString() !== req.user._id.toString()
+            );
+            
+            if (otherUser) {
+                const isBlocked = allBlockedUserIds.some(
+                    id => id.toString() === otherUser._id.toString()
+                );
+                return !isBlocked;
+            }
+            return true;
+        }
+    });
+
     chats = await User.populate(chats, {
       path: "latestMessage.sender",
       select: "username avatar email",
     });
 
+    // NEW: Add isMuted flag to each chat
+    const chatsWithMuteStatus = chats.map(chat => {
+      const chatObj = chat.toObject();
+      chatObj.isMuted = currentUser.mutedChats?.some(
+        id => id.toString() === chat._id.toString()
+      ) || false;
+      return chatObj;
+    });
+
     res
       .status(200)
-      .json(new ApiResponse(200, chats, "All chats fetched successfully!"));
+      .json(new ApiResponse(200, chatsWithMuteStatus, "All chats fetched successfully!"));
   } catch (error) {
+    console.error("Fetch chats error:", error);
     res.status(500).json(new ApiResponse(500, null, "Failed to fetch chats"));
   }
 });
+
 
 const createGroupChats = asyncHandler(async (req, res) => {
   if (!req.body.users || !req.body.name) {
@@ -584,6 +629,7 @@ const togglePin = asyncHandler(async (req, res) => {
   }
 });
 
+
 const blockUser = asyncHandler(async (req, res) => {
   const { userIdToBlock } = req.body;
   const currentUserId = req.user._id;
@@ -607,15 +653,19 @@ const blockUser = asyncHandler(async (req, res) => {
     }
 
     const currentUser = await User.findById(currentUserId);
+    
+    // Check if already blocked
     if (currentUser.blockedUsers.includes(userIdToBlock)) {
       return res
         .status(400)
         .json(new ApiResponse(400, null, "User is already blocked"));
     }
 
+    // Add to blocked list
     currentUser.blockedUsers.push(userIdToBlock);
     await currentUser.save();
 
+    // Delete one-on-one chat between these users
     await Chat.deleteMany({
       isGroupChat: false,
       users: {
@@ -628,7 +678,15 @@ const blockUser = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          { blockedUser: userToBlock },
+          { 
+            blockedUser: {
+              _id: userToBlock._id,
+              username: userToBlock.username,
+              email: userToBlock.email,
+              avatar: userToBlock.avatar
+            },
+            blockedUsersCount: currentUser.blockedUsers.length
+          },
           "User blocked successfully"
         )
       );
@@ -640,17 +698,297 @@ const blockUser = asyncHandler(async (req, res) => {
   }
 });
 
+// NEW: Unblock user function
+const unblockUser = asyncHandler(async (req, res) => {
+  const { userIdToUnblock } = req.body;
+  const currentUserId = req.user._id;
+
+  if (!userIdToUnblock) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "User ID to unblock is required"));
+  }
+
+  try {
+    const currentUser = await User.findById(currentUserId);
+    
+    // Check if user is actually blocked
+    if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "User is not blocked"));
+    }
+
+    // Remove from blocked list
+    currentUser.blockedUsers = currentUser.blockedUsers.filter(
+      id => id.toString() !== userIdToUnblock
+    );
+    await currentUser.save();
+
+    const unblockedUser = await User.findById(userIdToUnblock).select(
+      "username email avatar"
+    );
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            unblockedUser,
+            blockedUsersCount: currentUser.blockedUsers.length
+          },
+          "User unblocked successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error unblocking user:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+// NEW: Get list of blocked users
+const getBlockedUsers = asyncHandler(async (req, res) => {
+  const currentUserId = req.user._id;
+
+  try {
+    const currentUser = await User.findById(currentUserId)
+      .populate("blockedUsers", "username email avatar");
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            blockedUsers: currentUser.blockedUsers,
+            count: currentUser.blockedUsers.length
+          },
+          "Blocked users fetched successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error fetching blocked users:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+// NEW: Check if a user is blocked
+const isUserBlocked = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const currentUserId = req.user._id;
+
+  try {
+    const currentUser = await User.findById(currentUserId);
+    const isBlocked = currentUser.blockedUsers.includes(userId);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { isBlocked },
+          isBlocked ? "User is blocked" : "User is not blocked"
+        )
+      );
+  } catch (error) {
+    console.error("Error checking block status:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+
+
+const muteChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+  const userId = req.user._id;
+
+  if (!chatId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Chat ID is required"));
+  }
+
+  try {
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
+    }
+
+    // Verify user is part of the chat
+    const isUserInChat = chat.users.some(
+      (user) => user.toString() === userId.toString()
+    );
+
+    if (!isUserInChat) {
+      return res
+        .status(403)
+        .json(
+          new ApiResponse(403, null, "You are not a member of this chat")
+        );
+    }
+
+    // Get user and update mutedChats
+    const user = await User.findById(userId);
+    
+    if (!user.mutedChats) {
+      user.mutedChats = [];
+    }
+
+    // Check if already muted
+    if (user.mutedChats.some(id => id.toString() === chatId.toString())) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "Chat is already muted"));
+    }
+
+    user.mutedChats.push(chatId);
+    await user.save();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted: true },
+          "Chat muted successfully. You will no longer receive notifications from this chat."
+        )
+      );
+  } catch (error) {
+    console.error("Error muting chat:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const unmuteChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+  const userId = req.user._id;
+
+  if (!chatId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Chat ID is required"));
+  }
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user.mutedChats || !user.mutedChats.some(id => id.toString() === chatId.toString())) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, "Chat is not muted"));
+    }
+
+    user.mutedChats = user.mutedChats.filter(
+      (id) => id.toString() !== chatId.toString()
+    );
+    await user.save();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted: false },
+          "Chat unmuted successfully. You will now receive notifications from this chat."
+        )
+      );
+  } catch (error) {
+    console.error("Error unmuting chat:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const getMutedChats = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  try {
+    const user = await User.findById(userId).populate({
+      path: "mutedChats",
+      populate: [
+        { path: "users", select: "username avatar email" },
+        { path: "groupAdmin", select: "username avatar email" },
+        { path: "latestMessage" }
+      ]
+    });
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            mutedChats: user.mutedChats || [],
+            count: user.mutedChats?.length || 0
+          },
+          "Muted chats fetched successfully"
+        )
+      );
+  } catch (error) {
+    console.error("Error fetching muted chats:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+const isChatMuted = asyncHandler(async (req, res) => {
+  const { chatId } = req.params;
+  const userId = req.user._id;
+
+  try {
+    const user = await User.findById(userId);
+    const isMuted = user.mutedChats?.some(id => id.toString() === chatId.toString()) || false;
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { chatId, isMuted },
+          isMuted ? "Chat is muted" : "Chat is not muted"
+        )
+      );
+  } catch (error) {
+    console.error("Error checking mute status:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, "Internal server error"));
+  }
+});
+
+
+
+
 export {
   accessChat,
   fetchChats,
   createGroupChats,
   renameGroup,
-  updateGroupDetails,    // NEW EXPORT
-  removeGroupAvatar,     // NEW EXPORT
+  updateGroupDetails,    
+  removeGroupAvatar,     
   addToGroup,
   LeaveGroup,
   deleteChat,
   togglePin,
   blockUser,
   clearChat,
+  unblockUser,
+  getBlockedUsers,
+  isUserBlocked,
+  muteChat,      // NEW
+  unmuteChat,    // NEW
+  getMutedChats, // NEW
+  isChatMuted    // NEW
 };

@@ -19,6 +19,7 @@ const MessageActions: React.FC<MessageActionsProps> = ({
   onReact,
 }) => {
   const [showReactions, setShowReactions] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState<'top' | 'bottom'>('top');
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close reactions when clicking outside
@@ -34,6 +35,23 @@ const MessageActions: React.FC<MessageActionsProps> = ({
       return () => {
         document.removeEventListener("mousedown", handleClickOutside);
       };
+    }
+  }, [showReactions]);
+
+  // Calculate position when showing reactions
+  useEffect(() => {
+    if (showReactions && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const pickerHeight = 80; // Approximate height of emoji picker
+      
+      // If not enough space above, show below instead
+      if (spaceAbove < pickerHeight && spaceBelow > spaceAbove) {
+        setPickerPosition('bottom');
+      } else {
+        setPickerPosition('top');
+      }
     }
   }, [showReactions]);
 
@@ -93,10 +111,14 @@ const MessageActions: React.FC<MessageActionsProps> = ({
         <Smile className="h-4 w-4" />
       </Button>
 
-      {/* Emoji Picker Dropdown - STAYS OPEN */}
+      {/* Emoji Picker Dropdown - Dynamic Position */}
       {showReactions && (
         <div 
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-background border border-border rounded-lg shadow-xl p-2 z-[100] animate-in fade-in slide-in-from-bottom-2"
+          className={`absolute left-1/2 -translate-x-1/2 bg-background border border-border rounded-lg shadow-xl p-2 z-[100] animate-in fade-in ${
+            pickerPosition === 'top' 
+              ? 'bottom-full mb-2 slide-in-from-bottom-2' 
+              : 'top-full mt-2 slide-in-from-top-2'
+          }`}
           onClick={(e) => e.stopPropagation()}
           onMouseEnter={(e) => {
             // Keep open when mouse enters
@@ -120,8 +142,14 @@ const MessageActions: React.FC<MessageActionsProps> = ({
               </button>
             ))}
           </div>
-          {/* Small arrow pointing down */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-background border-b border-r border-border rotate-45"></div>
+          {/* Small arrow pointing to action buttons */}
+          <div 
+            className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-background border-border ${
+              pickerPosition === 'top'
+                ? '-bottom-2 border-b border-r rotate-45'
+                : '-top-2 border-t border-l rotate-45'
+            }`}
+          />
         </div>
       )}
     </div>

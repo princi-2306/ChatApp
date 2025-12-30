@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Loader, File, Download } from "lucide-react";
+import { Loader, File, Download, Edit2, Smile } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { User } from "@/components/store/userStore";
-import MessageActions from "./MessageActions";
-import MessageReactions from "./MessageReactions";
 import { Message } from "@/types/message";
+import MessageReactions from "./MessageReactions";
+import { Button } from "@/components/ui/button";
 
 interface MessageListProps {
   messages: Message[];
@@ -15,6 +15,9 @@ interface MessageListProps {
   onEditMessage: (messageId: string, content: string) => void;
   onReactToMessage: (messageId: string, emoji: string) => void;
 }
+
+// Common emoji reactions
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "👏"];
 
 const MessageList: React.FC<MessageListProps> = ({
   messages,
@@ -27,10 +30,48 @@ const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [pickerPosition, setPickerPosition] = useState<'top' | 'bottom'>('top');
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Close reactions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showReactions && emojiButtonRef.current && !emojiButtonRef.current.contains(event.target as Node)) {
+        const picker = document.getElementById(`emoji-picker-${showReactions}`);
+        if (picker && !picker.contains(event.target as Node)) {
+          setShowReactions(null);
+        }
+      }
+    };
+
+    if (showReactions) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [showReactions]);
+
+  // Calculate position when showing reactions
+  useEffect(() => {
+    if (showReactions && emojiButtonRef.current) {
+      const rect = emojiButtonRef.current.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const pickerHeight = 80;
+      
+      if (spaceAbove < pickerHeight && spaceBelow > spaceAbove) {
+        setPickerPosition('bottom');
+      } else {
+        setPickerPosition('top');
+      }
+    }
+  }, [showReactions]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,7 +104,6 @@ const MessageList: React.FC<MessageListProps> = ({
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
-  // Check if message can be edited (within 5 minutes)
   const canEditMessage = (message: Message) => {
     if (message.sender._id !== currentUser?._id) return false;
     const fiveMinutes = 5 * 60 * 1000;
@@ -74,11 +114,18 @@ const MessageList: React.FC<MessageListProps> = ({
   const handleReact = (messageId: string, emoji: string) => {
     console.log("MessageList: Reacting to message", messageId, "with", emoji);
     onReactToMessage(messageId, emoji);
+    setShowReactions(null);
   };
 
   const handleEdit = (messageId: string, content: string) => {
     console.log("MessageList: Editing message", messageId);
     onEditMessage(messageId, content);
+  };
+
+  const toggleReactions = (messageId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowReactions(showReactions === messageId ? null : messageId);
   };
 
   return (
@@ -95,6 +142,7 @@ const MessageList: React.FC<MessageListProps> = ({
                 const isMe = msg.sender?._id === currentUser?._id;
                 const canEdit = canEditMessage(msg);
                 const isHovered = hoveredMessageId === msg._id;
+                const showEmojiPicker = showReactions === msg._id;
 
                 return (
                   <div
@@ -104,19 +152,24 @@ const MessageList: React.FC<MessageListProps> = ({
                     onMouseLeave={() => setHoveredMessageId(null)}
                   >
                     <div className="relative max-w-xs lg:max-w-md">
-                      {/* Message Actions (Edit/React) - Show on hover */}
-                      {isHovered && (
+                      {/* Edit Button - Show on hover (top position) */}
+                      {isHovered && canEdit && (
                         <div
                           className={`absolute -top-10 ${
                             isMe ? "right-0" : "left-0"
                           } z-50`}
                         >
-                          <MessageActions
-                            messageId={msg._id}
-                            canEdit={canEdit}
-                            onEdit={() => handleEdit(msg._id, msg.content)}
-                            onReact={(emoji) => handleReact(msg._id, emoji)}
-                          />
+                          <div className="flex items-center gap-1 bg-background border border-border rounded-lg shadow-lg px-1 py-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-accent"
+                              onClick={() => handleEdit(msg._id, msg.content)}
+                              title="Edit message (within 5 minutes)"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       )}
 
@@ -217,18 +270,71 @@ const MessageList: React.FC<MessageListProps> = ({
                           />
                         )}
 
-                        {/* Timestamp and Edited Tag */}
+                        {/* Timestamp and Emoji Button */}
                         <div
-                          className={`flex items-center justify-end gap-2 mt-1 text-xs ${
+                          className={`flex items-center gap-2 mt-1 text-xs ${
                             isMe
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground"
+                              ? "text-primary-foreground/70 justify-end"
+                              : "text-muted-foreground justify-end"
                           }`}
                         >
                           {msg.isEdited && (
                             <span className="italic">edited</span>
                           )}
                           <span>{formatTime(msg.createdAt)}</span>
+                          
+                          {/* Emoji Reaction Button - Bigger and Outside */}
+                          <div className="relative">
+                            <button
+                              ref={showEmojiPicker ? emojiButtonRef : null}
+                              onClick={(e) => toggleReactions(msg._id, e)}
+                              className={`p-1.5 rounded-full bg-background border border-border text-white shadow-md hover:shadow-lg hover:scale-110 transition-all ${
+                                isHovered || showEmojiPicker ? 'opacity-100' : 'opacity-0'
+                              }`}
+                              title="Add reaction"
+                            >
+                              <Smile className="h-4 w-4" />
+                            </button>
+
+                            {/* Emoji Picker Dropdown - Bigger */}
+                            {showEmojiPicker && (
+                              <div 
+                                id={`emoji-picker-${msg._id}`}
+                                className={`absolute ${isMe ? 'right-0 translate-x-5 -translate-y-1' : 'left-0 -translate-x-5 -translate-y-1'} bg-background border-2 border-border rounded-xl shadow-2xl p-3 z-[100] animate-in fade-in ${
+                                  pickerPosition === 'top' 
+                                    ? 'bottom-full mb-3 slide-in-from-bottom-2' 
+                                    : 'top-full mt-3 slide-in-from-top-2'
+                                }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex gap-2">
+                                  {QUICK_REACTIONS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      className="text-3xl hover:scale-125 transition-transform p-2.5 rounded-lg hover:bg-accent active:scale-110 cursor-pointer"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleReact(msg._id, emoji);
+                                      }}
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      title={`React with ${emoji}`}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                                {/* Bigger Arrow pointer */}
+                                <div 
+                                  className={`absolute ${isMe ? 'right-6' : 'left-6'} w-5 h-5 bg-background border-border ${
+                                    pickerPosition === 'top'
+                                      ? '-bottom-2.5 border-b-2 border-r-2 rotate-45'
+                                      : '-top-2.5 border-t-2 border-l-2 rotate-45'
+                                  }`}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import axios from "axios";
 import {
   Loader,
   Search,
@@ -7,18 +8,17 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ChatListCard from "../Cards/ChatListCard";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import BlockedUsersList from "../../components/ChatSection/BlockedUsersList";
+import ChatListCard from "../Cards/ChatListCard";
 import AddUser from "../Cards/AddUser";
 import CreateGroup from "../Cards/CreateGroup";
-import BlockedUsersList from "../../components/ChatSection/BlockedUsersList"; // NEW IMPORT
-import userPost, { User } from "@/components/store/userStore";
-import axios from "axios";
-import { toast } from "sonner";
 import useChatStore from "@/components/store/chatStore";
-import { Chat } from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
+import userPost, { User } from "@/components/store/userStore";
+import { Chat } from "@/components/store/chatStore";
 import { getMutedChats } from "@/lib/muteApi";
 
 
@@ -37,7 +37,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
   const deleteChats = useChatStore((state) => state.deleteChat);
   const currentChat = useChatStore((state) => state.currentChat);
   const updateChat = useChatStore((state) => state.updateChat);
-  const muteChat = useChatStore((state) => state.muteChat);
   const setMutedChats = useChatStore((state) => state.setMutedChats);
 
 

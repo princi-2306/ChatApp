@@ -2,23 +2,13 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuPortal,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
   LockKeyhole,
   UserRoundPen,
   ImageUp,
-  Search,
   User,
   MessageCircleMore,
   Settings,
 } from "lucide-react";
-import { AlertDialog, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import userPost from "@/components/store/userStore";
 import { Separator } from "@/components/ui/separator";
 import ChangePassword from "./DialogBox/ChangePassword";

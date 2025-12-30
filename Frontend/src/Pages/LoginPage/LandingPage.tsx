@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -20,7 +19,7 @@ import {
 import { Link } from "react-router-dom";
 
 // Animation variants
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -30,7 +29,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
@@ -42,7 +41,7 @@ const itemVariants = {
   },
 };
 
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: {
     opacity: 1,
@@ -61,7 +60,7 @@ const cardVariants = {
   },
 };
 
-const fadeInUp = {
+const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 60 },
   visible: {
     opacity: 1,
@@ -73,7 +72,7 @@ const fadeInUp = {
   },
 };
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -83,10 +82,12 @@ const staggerContainer = {
   },
 };
 
-// Icons (using simple icons that work with black/grey theme)
-const MessageCircle = () => (
+// --- UPDATED ICONS SECTION ---
+// All icons now accept a className prop
+
+const MessageCircle = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -100,9 +101,9 @@ const MessageCircle = () => (
   </svg>
 );
 
-const Shield = () => (
+const Shield = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -116,9 +117,9 @@ const Shield = () => (
   </svg>
 );
 
-const Zap = () => (
+const Zap = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -132,9 +133,9 @@ const Zap = () => (
   </svg>
 );
 
-const Users = () => (
+const Users = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -148,9 +149,9 @@ const Users = () => (
   </svg>
 );
 
-const Lock = () => (
+const Lock = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -164,9 +165,9 @@ const Lock = () => (
   </svg>
 );
 
-const Globe = () => (
+const Globe = ({ className }: { className?: string }) => (
   <svg
-    className="w-6 h-6"
+    className={`w-6 h-6 ${className || ""}`}
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"

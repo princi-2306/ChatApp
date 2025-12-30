@@ -1,6 +1,3 @@
-import { User } from "@/components/store/userStore";
-import { Chat } from "@/components/store/chatStore";
-
 export interface Attachment {
   url: string;
   publicId: string;

@@ -71,6 +71,7 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   onAddMembers,
   allUsers = [],
   onGroupUpdate,
+  onGroupChatDelete
 }) => {
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -199,6 +200,7 @@ const GroupChatDetails: React.FC<GroupChatDetailsProps> = ({
   // NEW: Handle group deleted
   const handleGroupDeleted = () => {
     onOpenChange(false);
+    onGroupChatDelete();
     // The parent component should handle navigation
     if (onLeaveGroup) {
       onLeaveGroup(localGroup);

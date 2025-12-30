@@ -48,30 +48,46 @@ const AddUser = ({ onClose }) => {
        setLoading(true);
        const config = {
          headers: {
-           "Content-type" : "application/json",
-           Authorization: `Bearer ${currentUser?.token}`
-         }
+           "Content-type": "application/json",
+           Authorization: `Bearer ${currentUser?.token}`,
+         },
        };
        const response = await axios.post(
-         " http://localhost:8000/api/v1/chats/", {userId}, config
+         " http://localhost:8000/api/v1/chats/",
+         { userId },
+         config
        );
-      if (
-        Array.isArray(chats) &&
-        !chats.find((c) => c._id === response.data.data._id)
-      ) {
-        setChats([response.data, ...chats]);
-      }
-      
-       setCurrentChat(response.data)
-       console.log(response.data)
+      //  if (
+      //    Array.isArray(chats) &&
+      //    !chats.find((c) => c._id === response.data.data._id)
+      //  ) {
+      //    setChats([response.data, ...chats]);
+      //  }
+
+       setCurrentChat(response.data.data);
+       console.log(response.data);
        setLoading(false);
-       toast.success("user added successfully!")
+       toast.success("user added successfully!");
        onClose();
-     } catch (error) {
-        toast.error("failed to load the search results");
-        console.log(error);
+     } catch (error : any) {
+       if (error.response?.status === 409) {
+         toast.info("Chat with this user already exists");
+
+         // Optional: open existing chat if backend sends it
+         if (error.response.data?.data) {
+           setCurrentChat(error.response.data.data);
+         }
+       } else {
+         toast.error("Failed to open chat");
+       }
+
+       console.error(error);
+     } finally {
+       setLoading(false);
      }
   }
+  // console.log(useChatStore.getState().currentChat)
+
   return (
     <div className="absolute top-16 z-40 lg:w-[23rem] w-full bg-background border-l shadow-lg animate-in slide-in-from-left-5 h-[calc(100%-4rem)] flex flex-col">
       <div className="flex items-center justify-between p-4 border-b">

@@ -28,7 +28,7 @@ interface SelectedUser {
   avatar?: string;
 }
 
-const CreateGroup: React.FC<CreateGroupProps> = ({ onClose }) => {
+const CreateGroup: React.FC<CreateGroupProps> = ({ onClose, showCreateGroup }) => {
   const [groupName, setGroupName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -225,6 +225,14 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ onClose }) => {
   }, [avatarPreview]);
 
   useEffect(() => {
+    if (showCreateGroup) {
+      useChatStore.getState().openDialog();
+    } else {
+      useChatStore.getState().closeDialog();
+    }
+  }, [showCreateGroup]);
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
       searchUsers(searchQuery);
     }, 300);
@@ -252,7 +260,7 @@ const CreateGroup: React.FC<CreateGroupProps> = ({ onClose }) => {
           {/* Group Avatar Upload */}
           <div>
             <label className="text-sm font-medium mb-2 block">
-              Group Avatar (Optional)
+              Group Avatar 
             </label>
             <div className="flex items-center gap-4">
               <div className="relative">

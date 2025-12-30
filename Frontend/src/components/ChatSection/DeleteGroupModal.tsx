@@ -57,23 +57,17 @@ const DeleteGroupModal: React.FC<DeleteGroupModalProps> = ({
         `http://localhost:8000/api/v1/chats/delete-chat/${group._id}`,
         config
       );
-
+     
       if (response.data.success) {
         toast.success("Group deleted successfully!");
         onGroupDeleted();
         onOpenChange(false);
         setConfirmText("");
+        console.log(response.data);
       }
     } catch (error: any) {
       console.error("Error deleting group:", error);
-      
-      if (error.response?.status === 403) {
-        toast.error("Only group admin can delete the group");
-      } else if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else {
-        toast.error("Failed to delete group. Please try again.");
-      }
+      toast.error("Failed to delete group. Please try again.");
     } finally {
       setLoading(false);
     }

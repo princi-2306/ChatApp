@@ -31,6 +31,9 @@ interface ChatStore {
     unmuteChat: (chatId: string) => void;
     setMutedChats: (chatIds: string[]) => void;
     isChatMuted: (chatId: string) => boolean;
+    openDialog: () => void;
+    closeDialog : () => void;
+    isDialogOpen: boolean;
 }
 
 
@@ -83,7 +86,11 @@ const useChatStore = create<ChatStore>((set, get) => ({
     isChatMuted: (chatId) => {
         const state = get();
         return state.mutedChats.includes(chatId);
-    }
+    },
+    //stop fetchChats when groupchats dialog box in open
+    isDialogOpen: false,
+    openDialog: () => set({ isDialogOpen: true }),
+    closeDialog: () => set({isDialogOpen : false}),
 }));
 
 

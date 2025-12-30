@@ -297,7 +297,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               </Button>
               
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger >
                   <Button variant="ghost" size="icon">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
@@ -307,7 +307,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     View {currentChat.isGroupChat ? "Group" : "Profile"}
                   </DropdownMenuItem>
                   
-                  <DropdownMenuItem 
+                  {/* <DropdownMenuItem 
                     onClick={handleToggleMute}
                     disabled={isMuteLoading}
                   >
@@ -315,16 +315,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                       "Loading..."
                     ) : isMuted ? (
                       <>
-                        <Volume2 className="mr-2 h-4 w-4" />
+                        
                         Unmute Notifications
                       </>
                     ) : (
                       <>
-                        <BellOff className="mr-2 h-4 w-4" />
+                      
                         Mute Notifications
                       </>
                     )}
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   
                   <DropdownMenuItem onClick={() => setShowClearDialog(true)}>
                     Clear Chat

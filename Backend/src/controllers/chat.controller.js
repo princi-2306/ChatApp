@@ -14,7 +14,7 @@ const accessChat = asyncHandler(async (req, res) => {
     return res.status(400);
   }
 
-  var isChat = await Message.find({
+  var isChat = await Chat.find({
     isGroupChat: false,
     $and: [
       { users: { $elemMatch: { $eq: req.user._id } } },
@@ -30,7 +30,11 @@ const accessChat = asyncHandler(async (req, res) => {
   });
 
   if (isChat.length > 0) {
-    res.send(isChat[0]);
+    return res
+      .status(409)
+      .json(
+        new ApiResponse(409, isChat[0], "Chat with this user already exists")
+      );
   } else {
     var chatData = {
       chatName: "sender",

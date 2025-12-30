@@ -18,7 +18,6 @@ import {
   Pin,
   Volume2,
   CheckCheck,
-  Trash2,
   Users,
   Eraser,
   MoreHorizontal,
@@ -358,15 +357,15 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
               </>
             )}
 
-            <DropdownMenuSeparator />
+            {/* <DropdownMenuSeparator /> */}
 
-            <DropdownMenuItem
+            {/* <DropdownMenuItem
               onClick={deleteChat}
               className="text-red-600 focus:text-red-600"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete Chat
-            </DropdownMenuItem>
+            </DropdownMenuItem> */}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

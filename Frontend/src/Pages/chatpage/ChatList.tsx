@@ -234,7 +234,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       fetchUnreadCounts();
       fetchMutedChats();
     }
-  }, [currentUser]);
+  }, [currentUser, currentChat]);
 
   const fetchChats = async () => {
     try {
@@ -254,6 +254,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       console.log(error);
     }
   };
+  
 
   if (loading) return <Loader />;
 
@@ -281,7 +282,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
             >
               <UserPlus className="h-4 w-4" />
             </Button>
-            
+
             {/* NEW: Blocked Users Button */}
             <div className="relative">
               <Button
@@ -290,7 +291,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                 onClick={() => setShowBlockedUsers(true)}
                 title="Blocked Users"
                 className="hover:bg-orange-50 dark:hover:bg-orange-950"
-              > 
+              >
                 <Ban className="h-4 w-4 text-orange-600" />
               </Button>
               {blockedUsers.length > 0 && (
@@ -394,11 +395,17 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       {/* Modals */}
       {showAddPanel && <AddUser onClose={() => setShowAddPanel(false)} />}
       {showCreateGroup && (
-        <CreateGroup onClose={() => setShowCreateGroup(false)} />
+        <CreateGroup
+          showCreateGroup={showCreateGroup}
+          onClose={() => {
+            setShowCreateGroup(false);
+            useChatStore.getState().closeDialog();
+          }}
+        />
       )}
-      
+
       {/* NEW: Blocked Users Modal */}
-      <BlockedUsersList 
+      <BlockedUsersList
         open={showBlockedUsers}
         onOpenChange={setShowBlockedUsers}
       />

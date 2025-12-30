@@ -10,6 +10,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { DefaultEventsMap } from "@socket.io/component-emitter";
 import { Message } from "@/types/message";
+import { useNavigate } from "react-router-dom";
 
 // Import components
 import ChatHeader from "../../components/ChatSection/ChatHeader";
@@ -58,6 +59,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
   const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+  const navigate = useNavigate();
 
   // NEW: Edit message states
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -299,6 +301,7 @@ useEffect(() => {
       if (currentChat?._id === groupId && onBack) {
         onBack();
       }
+      navigate(-1);
     }
   });
 
@@ -318,6 +321,7 @@ useEffect(() => {
       });
     }
   });
+
 
   return () => {
     socket.off("typing");
@@ -367,6 +371,7 @@ useEffect(() => {
   };
 
   const fetchMessages = async () => {
+  
     if (!currentChat) return;
     try {
       const config = {
@@ -611,6 +616,7 @@ useEffect(() => {
   };
 
   useEffect(() => {
+    if (useChatStore.getState().isDialogOpen) return;
     fetchMessages();
     currentChatCompare = currentChat;
   }, [currentChat]);
@@ -706,6 +712,7 @@ useEffect(() => {
               onAddMembers={handleAddMembers}
               onLeaveGroup={handleLeaveGroup}
               onGroupUpdate={handleGroupUpdate}
+              onGroupChatDelete={handleGroupDeleted}
             />
           ) : (
             <UserProfileModal

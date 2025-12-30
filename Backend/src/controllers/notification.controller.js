@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { Notification } from "../models/Notification.model.js";
 import { Chat } from "../models/ChatModel.model.js";
+import { User } from "../models/User.model.js";
 import mongoose from "mongoose";
 
 // Get all notifications for logged-in user
@@ -60,29 +61,32 @@ const getUnreadMessageCountPerChat = asyncHandler(async (req, res) => {
   const unreadCounts = await Notification.aggregate([
     {
       $match: {
-        recipient: new mongoose.Types.ObjectId(userId),
+        recipient: userId,
+        sender: { $ne: userId },
         isRead: false,
-        type: { $in: ['new_message', 'group_message'] },
-        chat: { $nin: mutedChatIds.map(id => new mongoose.Types.ObjectId(id)) } // Exclude muted chats
-      }
+        type: { $in: ["new_message", "group_message"] },
+        chat: {
+          $nin: mutedChatIds.map((id) => new mongoose.Types.ObjectId(id)),
+        }, // Exclude muted chats
+      },
     },
     {
       $group: {
         _id: "$chat",
         count: { $sum: 1 },
-        lastNotification: { $max: "$createdAt" }
-      }
+        lastNotification: { $max: "$createdAt" },
+      },
     },
     {
       $lookup: {
         from: "chats",
         localField: "_id",
         foreignField: "_id",
-        as: "chatInfo"
-      }
+        as: "chatInfo",
+      },
     },
     {
-      $unwind: "$chatInfo"
+      $unwind: "$chatInfo",
     },
     {
       $project: {
@@ -90,12 +94,12 @@ const getUnreadMessageCountPerChat = asyncHandler(async (req, res) => {
         count: 1,
         lastNotification: 1,
         chatName: "$chatInfo.chatName",
-        isGroupChat: "$chatInfo.isGroupChat"
-      }
+        isGroupChat: "$chatInfo.isGroupChat",
+      },
     },
     {
-      $sort: { lastNotification: -1 }
-    }
+      $sort: { lastNotification: -1 },
+    },
   ]);
 
   // Format the response as an object with chatId as keys

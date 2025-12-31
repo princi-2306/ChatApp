@@ -350,6 +350,7 @@ export const useVoiceCall = (
       socket.off("call:ended");
       socket.off("call:busy");
       socket.off("webrtc:ice-candidate");
+      socket.disconnect()
     };
   }, [socket, currentUser, otherUser]);
 

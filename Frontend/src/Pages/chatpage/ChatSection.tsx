@@ -336,6 +336,7 @@ useEffect(() => {
     socket.off("new notification");
     socket.off("chat deleted");
     socket.off("group deleted");
+    socket.disconnect();
   };
 }, [currentUser]);
 
@@ -644,6 +645,8 @@ useEffect(() => {
 
     return () => {
       socket.off("message recieved");
+      socket.disconnect()
+
     };
   }, []);
 

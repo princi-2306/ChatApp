@@ -21,17 +21,19 @@ import userPost, { User } from "@/components/store/userStore";
 import { Chat } from "@/components/store/chatStore";
 import { getMutedChats } from "@/lib/muteApi";
 
-
 const ChatList = ({ onChatSelect, selectedChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showBlockedUsers, setShowBlockedUsers] = useState(false); // NEW STATE
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // NEW: State to control which dropdown menu is currently open
+  const [activeMenuChatId, setActiveMenuChatId] = useState<string | null>(null);
 
   const currentUser = userPost((state) => state.currentUser);
-  const blockedUsers = userPost((state) => state.blockedUsers); // NEW
+  const blockedUsers = userPost((state) => state.blockedUsers);
   const setChats = useChatStore((state) => state.setChats);
   const chats = useChatStore((state) => state.chats);
   const deleteChats = useChatStore((state) => state.deleteChat);
@@ -39,27 +41,24 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
   const updateChat = useChatStore((state) => state.updateChat);
   const setMutedChats = useChatStore((state) => state.setMutedChats);
 
-
-
   const fetchMutedChats = async () => {
-  try {
-    if (!currentUser?.token) return;
-    
-    const response = await getMutedChats(currentUser.token);
-    const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
-    setMutedChats(mutedChatIds);
-    
-    // Update chat objects with mute status
-    setChats(chats.map(chat => ({
-      ...chat,
-      isMuted: mutedChatIds.includes(chat._id),
-      mute: mutedChatIds.includes(chat._id)
-    })));
-  } catch (error) {
-    console.error("Error fetching muted chats:", error);
-  }
-};
-
+    try {
+      if (!currentUser?.token) return;
+      
+      const response = await getMutedChats(currentUser.token);
+      const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
+      setMutedChats(mutedChatIds);
+      
+      // Update chat objects with mute status
+      setChats(chats.map(chat => ({
+        ...chat,
+        isMuted: mutedChatIds.includes(chat._id),
+        mute: mutedChatIds.includes(chat._id)
+      })));
+    } catch (error) {
+      console.error("Error fetching muted chats:", error);
+    }
+  };
 
   // Notification store
   const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
@@ -253,7 +252,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       console.log(error);
     }
   };
-  
 
   if (loading) return <Loader />;
 
@@ -282,7 +280,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
               <UserPlus className="h-4 w-4" />
             </Button>
 
-            {/* NEW: Blocked Users Button */}
+            {/* Blocked Users Button */}
             <div className="relative">
               <Button
                 variant="ghost"
@@ -347,6 +345,9 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                         deleteChat={() => deleteChat(chat._id)}
                         clearChat={() => clearChat(chat._id)}
                         unreadCount={unreadPerChat[chat._id]?.count || 0}
+                        // PASSING CONTROL PROPS HERE
+                        isMenuOpen={activeMenuChatId === chat._id}
+                        onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                       />
                     </div>
                   ))}
@@ -383,6 +384,9 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                       deleteChat={() => deleteChat(chat._id)}
                       clearChat={() => clearChat(chat._id)}
                       unreadCount={unreadPerChat[chat._id]?.count || 0}
+                      // PASSING CONTROL PROPS HERE AS WELL
+                      isMenuOpen={activeMenuChatId === chat._id}
+                      onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                     />
                   </div>
                 ))}
@@ -403,7 +407,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
         />
       )}
 
-      {/* NEW: Blocked Users Modal */}
+      {/* Blocked Users Modal */}
       <BlockedUsersList
         open={showBlockedUsers}
         onOpenChange={setShowBlockedUsers}

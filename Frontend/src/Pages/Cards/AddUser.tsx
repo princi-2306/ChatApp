@@ -2,27 +2,48 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Search } from 'lucide-react';
-import React, { useState } from 'react'
+import { useState, useEffect } from 'react';
 import userPost from '@/components/store/userStore';
 import { toast } from 'sonner';
 import axios from 'axios';
 import Loader from '@/components/ui/Loader';
 import useChatStore from '@/components/store/chatStore';
 
-const AddUser = ({ onClose }) => {
+// 1. Define the User interface
+interface User {
+  _id: string;
+  username: string;
+  email: string;
+  avatar: string;
+  token?: string;
+}
+
+const AddUser = ({ onClose }: { onClose: () => void }) => {
   const currentUser = userPost((state) => state.currentUser);
-  const [isShowUsers, setIsShowUser] = useState([]);
+  
+  // 2. Explicitly tell useState that this is an array of 'User' objects
+  const [isShowUsers, setIsShowUser] = useState<User[]>([]);
+  
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const setChats = useChatStore((state) => state.setChats)
-  const chats = useChatStore((state) => state.chats)
-  const setCurrentChat = useChatStore((state) => state.setCurrentChat)
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
 
-  const handleSearch = async () => {
-    if (!search) {
-      toast.error("please enter something in search")
-      return;
-    }
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (search.trim()) {
+        handleSearch(search);
+      } else {
+        setIsShowUser([]);
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search]);
+
+  const handleSearch = async (query: string) => {
+    if (!query || typeof query !== 'string') return;
+
     try {
       setLoading(true);
       const config = {
@@ -31,62 +52,54 @@ const AddUser = ({ onClose }) => {
         }
       };
       const response = await axios.get(
-        `http://localhost:8000/api/v1/users/register?search=${search}`,
+        `http://localhost:8000/api/v1/users/register?search=${query}`,
         config
       );
+      
       setLoading(false);
       setIsShowUser(response.data.data);
       console.log(response.data.data);
     } catch (error) {
-      toast.error("failed to load the search results")
       console.log(error);
+      setLoading(false);
     }
   }
 
-  const accessChat = async(userId : string) => {
-     try {
-       setLoading(true);
-       const config = {
-         headers: {
-           "Content-type": "application/json",
-           Authorization: `Bearer ${currentUser?.token}`,
-         },
-       };
-       const response = await axios.post(
-         " http://localhost:8000/api/v1/chats/",
-         { userId },
-         config
-       );
-      //  if (
-      //    Array.isArray(chats) &&
-      //    !chats.find((c) => c._id === response.data.data._id)
-      //  ) {
-      //    setChats([response.data, ...chats]);
-      //  }
+  const accessChat = async (userId: string) => {
+    try {
+      setLoading(true);
+      const config = {
+        headers: {
+          "Content-type": "application/json",
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+      };
+      const response = await axios.post(
+        "http://localhost:8000/api/v1/chats/",
+        { userId },
+        config
+      );
 
-       setCurrentChat(response.data.data);
-       console.log(response.data);
-       setLoading(false);
-       toast.success("user added successfully!");
-       onClose();
-     } catch (error : any) {
-       if (error.response?.status === 409) {
-         toast.info("Chat with this user already exists");
+      setCurrentChat(response.data.data);
+      console.log(response.data);
+      setLoading(false);
+      toast.success("user added successfully!");
+      onClose();
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        toast.info("Chat with this user already exists");
 
-         // Optional: open existing chat if backend sends it
-         if (error.response.data?.data) {
-           setCurrentChat(error.response.data.data);
-         }
-       } else {
-         toast.error("Failed to open chat");
-       }
+        if (error.response.data?.data) {
+          setCurrentChat(error.response.data.data);
+        }
+      } else {
+        toast.error("Failed to open chat");
+      }
 
-       console.error(error);
-     } finally {
-       setLoading(false);
-     }
+      console.error(error);
+      setLoading(false);
+    }
   }
-  // console.log(useChatStore.getState().currentChat)
 
   return (
     <div className="absolute top-16 z-40 lg:w-[23rem] w-full bg-background border-l shadow-lg animate-in slide-in-from-left-5 h-[calc(100%-4rem)] flex flex-col">
@@ -107,31 +120,38 @@ const AddUser = ({ onClose }) => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button onClick={handleSearch} size="sm" disabled={loading}>
-            {loading ? <Loader/> : "Go"}</Button>
+          <Button onClick={() => handleSearch(search)} size="sm" disabled={loading}>
+            {loading ? <Loader /> : "Go"}
+          </Button>
         </div>
         <div className="flex-1 min-h-0">
           <ScrollArea className="h-full p-4">
             <div className="space-y-2">
-              {loading ? <Loader/> : (
-                    isShowUsers.length > 0 ? (
-                    isShowUsers?.map(user => (
-                <div
-                  key={user._id}
-                  className="flex items-center justify-between p-2 border rounded-md hover:bg-muted cursor-pointer"
-                >
-                  <span>{user.username}</span>
-                  <Button size="sm" variant="secondary" onClick={()=>accessChat(user._id)}>
-                    Add
-                  </Button>
+              {loading ? (
+                <div className="flex justify-center p-4">
+                  <Loader /> 
                 </div>
-              ))
               ) : (
-              <p>No users found</p>
-              )
+                isShowUsers.length > 0 ? (
+                  isShowUsers.map((user) => (
+                    <div
+                      key={user._id}
+                      className="flex items-center justify-between p-2 border rounded-md hover:bg-muted cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* Optional: Add avatar display here since we defined it in the type */}
+                         <img src={user.avatar} alt={user.username} className="w-8 h-8 rounded-full" />
+                        <span>{user.username}</span>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => accessChat(user._id)}>
+                        Add
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  search && <p className="text-center text-muted-foreground">No users found</p>
+                )
               )}
-             
-
             </div>
           </ScrollArea>
         </div>
@@ -140,4 +160,4 @@ const AddUser = ({ onClose }) => {
   );
 }
 
-export default AddUser
+export default AddUser;

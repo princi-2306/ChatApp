@@ -133,8 +133,8 @@ const MessageList: React.FC<MessageListProps> = ({
       <ScrollArea className="h-full p-4">
         <div className="space-y-4">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader className="h-8 w-8 animate-spin" />
+            <div className="flex items-center justify-center md:h-screen">
+              <Loader className="h-12 w-12 md:translate-y-28 translate-y-44  animate-spin" />
             </div>
           ) : (
             <>

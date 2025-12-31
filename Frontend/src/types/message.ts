@@ -1,5 +1,4 @@
-import { User } from "@/components/store/userStore";
-import { Chat } from "@/components/store/chatStore";
+// TS DONE
 
 export interface Attachment {
   url: string;

@@ -1,11 +1,13 @@
-import React from 'react'
+import { cn } from "@/lib/utils"; // Ensure this path matches your utils location
+import { Loader2 } from "lucide-react"; // Assuming you use lucide-react, or replace with your SVG
 
-const Loader = () => {
-  return (
-    <div className="flex justify-center items-center">
-      <div className="w-8 h-8 border-4 border-blue-500 border-dashed rounded-full animate-spin"></div>
-    </div>
-  );
+interface LoaderProps {
+  className?: string;
 }
 
-export default Loader
+const Loader = ({ className }: LoaderProps) => {
+  // We use 'cn' to merge any default classes with the one you pass in
+  return <Loader2 className={cn("animate-spin", className)} />;
+};
+
+export default Loader;

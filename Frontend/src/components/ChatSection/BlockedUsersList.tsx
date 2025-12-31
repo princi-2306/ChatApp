@@ -1,4 +1,5 @@
-// Create this file at: src/components/ChatSection/BlockedUsersList.tsx
+// TS DONE
+
 import React, { useEffect, useState } from "react";
 import {
   Dialog,

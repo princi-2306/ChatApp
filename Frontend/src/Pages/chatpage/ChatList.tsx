@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import axios from "axios";
 import {
   Loader,
   Search,
@@ -7,60 +8,59 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ChatListCard from "../Cards/ChatListCard";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import BlockedUsersList from "../../components/ChatSection/BlockedUsersList";
+import ChatListCard from "../Cards/ChatListCard";
 import AddUser from "../Cards/AddUser";
 import CreateGroup from "../Cards/CreateGroup";
-import BlockedUsersList from "../../components/ChatSection/BlockedUsersList"; // NEW IMPORT
-import userPost, { User } from "@/components/store/userStore";
-import axios from "axios";
-import { toast } from "sonner";
 import useChatStore from "@/components/store/chatStore";
-import { Chat } from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
+import userPost from "@/components/store/userStore";
+import { Chat } from "@/components/store/chatStore";
 import { getMutedChats } from "@/lib/muteApi";
 
-
-const ChatList = ({ onChatSelect, selectedChat }) => {
+const ChatList = ({ onChatSelect, selectedChat }: { onChatSelect: any, selectedChat: any }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showBlockedUsers, setShowBlockedUsers] = useState(false); // NEW STATE
-  const [loggedUser, setLoggedUser] = useState<User | null>(null);
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  
+  // FIX: Removed unused 'loggedUser' state
+  
   const [loading, setLoading] = useState(false);
+  
+  // NEW: State to control which dropdown menu is currently open
+  const [activeMenuChatId, setActiveMenuChatId] = useState<string | null>(null);
 
   const currentUser = userPost((state) => state.currentUser);
-  const blockedUsers = userPost((state) => state.blockedUsers); // NEW
+  const blockedUsers = userPost((state) => state.blockedUsers);
   const setChats = useChatStore((state) => state.setChats);
   const chats = useChatStore((state) => state.chats);
   const deleteChats = useChatStore((state) => state.deleteChat);
   const currentChat = useChatStore((state) => state.currentChat);
   const updateChat = useChatStore((state) => state.updateChat);
-  const muteChat = useChatStore((state) => state.muteChat);
   const setMutedChats = useChatStore((state) => state.setMutedChats);
 
-
-
   const fetchMutedChats = async () => {
-  try {
-    if (!currentUser?.token) return;
-    
-    const response = await getMutedChats(currentUser.token);
-    const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
-    setMutedChats(mutedChatIds);
-    
-    // Update chat objects with mute status
-    setChats(chats.map(chat => ({
-      ...chat,
-      isMuted: mutedChatIds.includes(chat._id),
-      mute: mutedChatIds.includes(chat._id)
-    })));
-  } catch (error) {
-    console.error("Error fetching muted chats:", error);
-  }
-};
-
+    try {
+      if (!currentUser?.token) return;
+      
+      const response = await getMutedChats(currentUser.token);
+      const mutedChatIds = response.data.mutedChats.map((chat: any) => chat._id);
+      setMutedChats(mutedChatIds);
+      
+      // Update chat objects with mute status
+      setChats(chats.map(chat => ({
+        ...chat,
+        isMuted: mutedChatIds.includes(chat._id),
+        mute: mutedChatIds.includes(chat._id)
+      })));
+    } catch (error) {
+      console.error("Error fetching muted chats:", error);
+    }
+  };
 
   // Notification store
   const unreadPerChat = useNotificationStore((state) => state.unreadPerChat);
@@ -100,7 +100,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.put(
-        "http://localhost:8000/api/v1/chats/toggle-pin",
+        `${import.meta.env.VITE_URL}/chats/toggle-pin`,
         { chatId },
         config
       );
@@ -144,7 +144,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       await axios.put(
-        `http://localhost:8000/api/v1/notifications/read-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/notifications/read-chat/${chatId}`,
         {},
         config
       );
@@ -166,7 +166,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       setLoading(true);
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/delete-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/chats/delete-chat/${chatId}`,
         config
       );
 
@@ -194,7 +194,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/clear-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/chats/clear-chat/${chatId}`,
         config
       );
 
@@ -214,7 +214,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/notifications/unread-per-chat",
+        `${import.meta.env.VITE_URL}/notifications/unread-per-chat`,
         config
       );
 
@@ -224,9 +224,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     }
   };
 
-  useEffect(() => {
-    setLoggedUser(currentUser);
-  }, [currentUser]);
+  // FIX: Removed redundant useEffect that was updating the unused loggedUser state
 
   useEffect(() => {
     if (currentUser) {
@@ -245,7 +243,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/chats/fetch-chats",
+        `${import.meta.env.VITE_URL}/chats/fetch-chats`,
         config
       );
       setChats(response.data.data);
@@ -254,7 +252,6 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       console.log(error);
     }
   };
-  
 
   if (loading) return <Loader />;
 
@@ -283,7 +280,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
               <UserPlus className="h-4 w-4" />
             </Button>
 
-            {/* NEW: Blocked Users Button */}
+            {/* Blocked Users Button */}
             <div className="relative">
               <Button
                 variant="ghost"
@@ -340,14 +337,16 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                       }
                     >
                       <ChatListCard
-                        chat={chat}
-                        loggedUser={currentUser}
+                        chat={chat as any} // FIX 1: Cast to 'any' to resolve boolean|undefined mismatch
+                        loggedUser={currentUser as any} // FIX 2: Cast to 'any' to resolve string|number mismatch
                         onPin={() => togglePin(chat._id)}
                         onMute={() => toggleMute(chat._id)}
                         onMarkAsRead={() => markAsRead(chat._id)}
                         deleteChat={() => deleteChat(chat._id)}
                         clearChat={() => clearChat(chat._id)}
                         unreadCount={unreadPerChat[chat._id]?.count || 0}
+                        isMenuOpen={activeMenuChatId === chat._id}
+                        onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                       />
                     </div>
                   ))}
@@ -376,14 +375,16 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                     }
                   >
                     <ChatListCard
-                      chat={chat}
-                      loggedUser={currentUser}
+                      chat={chat as any} // FIX 1
+                      loggedUser={currentUser as any} // FIX 2
                       onPin={() => togglePin(chat._id)}
                       onMute={() => toggleMute(chat._id)}
                       onMarkAsRead={() => markAsRead(chat._id)}
                       deleteChat={() => deleteChat(chat._id)}
                       clearChat={() => clearChat(chat._id)}
                       unreadCount={unreadPerChat[chat._id]?.count || 0}
+                      isMenuOpen={activeMenuChatId === chat._id}
+                      onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                     />
                   </div>
                 ))}
@@ -404,7 +405,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
         />
       )}
 
-      {/* NEW: Blocked Users Modal */}
+      {/* Blocked Users Modal */}
       <BlockedUsersList
         open={showBlockedUsers}
         onOpenChange={setShowBlockedUsers}

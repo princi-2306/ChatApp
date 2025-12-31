@@ -1,4 +1,3 @@
-import React from 'react'
 import HomePage from '@/Pages/LoginPage/HomePage'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from "@/components/ui/sonner"

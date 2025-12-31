@@ -1,10 +1,12 @@
+// TS DONE
+
 import React, {useState} from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import useChatStore from "@/components/store/chatStore";
 import { blockUser } from "@/lib/blockUserApi";
-import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi"; // NEW IMPORT
+import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi";
 import userPost from "@/components/store/userStore";
 import { toast } from "sonner";
 import {
@@ -69,6 +71,9 @@ interface ChatListCardProps {
   deleteChat: () => void;
   clearChat: () => void;
   unreadCount?: number;
+  // NEW: Props for controlling the dropdown menu state
+  isMenuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
 }
 
 const ChatListCard: React.FC<ChatListCardProps> = ({
@@ -77,19 +82,21 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
   onPin,
   onMute,
   onMarkAsRead,
-  deleteChat,
   clearChat,
   unreadCount = 0,
+  // NEW: Destructure control props
+  isMenuOpen,
+  onMenuOpenChange,
 }) => {
 
   const [isBlockLoading, setIsBlockLoading] = useState(false);
-  const [isMuteLoading, setIsMuteLoading] = useState(false); // NEW
+  const [isMuteLoading, setIsMuteLoading] = useState(false);
   
   const currentUser = userPost((state) => state.currentUser);
   const addBlockedUser = userPost((state) => state.addBlockedUser);
   const deleteChats = useChatStore((state) => state.deleteChat);
-  const muteChat = useChatStore((state) => state.muteChat); // NEW
-  const unmuteChat = useChatStore((state) => state.unmuteChat); // NEW
+  const muteChat = useChatStore((state) => state.muteChat);
+  const unmuteChat = useChatStore((state) => state.unmuteChat);
 
   const otherUser = chat.isGroupChat
     ? null
@@ -166,7 +173,6 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
     }
   };
 
-  // NEW: Handle mute/unmute
   const handleToggleMute = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -175,18 +181,15 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
     setIsMuteLoading(true);
     try {
       if (isMuted) {
-        // Unmute
         await unmuteChatApi(chat._id, currentUser.token);
         unmuteChat(chat._id);
         toast.success("Chat unmuted. You will now receive notifications.");
       } else {
-        // Mute
         await muteChatApi(chat._id, currentUser.token);
         muteChat(chat._id);
         toast.success("Chat muted. You won't receive notifications.");
       }
       
-      // Call parent onMute if provided (for backward compatibility)
       if (onMute) {
         onMute();
       }
@@ -286,7 +289,8 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
       </div>
 
       <div onClick={(e) => e.stopPropagation()}>
-        <DropdownMenu>
+        {/* MODIFIED: Controlled DropdownMenu */}
+        <DropdownMenu open={isMenuOpen} onOpenChange={onMenuOpenChange}>
           <DropdownMenuTrigger>
             <Button
               variant="ghost"
@@ -302,7 +306,6 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
               {chat.pinned ? "Unpin" : "Pin"}
             </DropdownMenuItem>
 
-            {/* UPDATED: Mute option with loading state */}
             <DropdownMenuItem 
               onClick={handleToggleMute}
               disabled={isMuteLoading}
@@ -356,16 +359,6 @@ const ChatListCard: React.FC<ChatListCardProps> = ({
                 </DropdownMenuItem>
               </>
             )}
-
-            {/* <DropdownMenuSeparator /> */}
-
-            {/* <DropdownMenuItem
-              onClick={deleteChat}
-              className="text-red-600 focus:text-red-600"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Chat
-            </DropdownMenuItem> */}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

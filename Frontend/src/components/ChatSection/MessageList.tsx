@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useRef, useEffect, useState } from "react";
 import { Loader, File, Download, Edit2, Smile } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -64,7 +66,7 @@ const MessageList: React.FC<MessageListProps> = ({
       const spaceAbove = rect.top;
       const spaceBelow = window.innerHeight - rect.bottom;
       const pickerHeight = 80;
-      
+
       if (spaceAbove < pickerHeight && spaceBelow > spaceAbove) {
         setPickerPosition('bottom');
       } else {
@@ -155,9 +157,8 @@ const MessageList: React.FC<MessageListProps> = ({
                     {/* Edit Button - Show on hover (top position) */}
                     {isHovered && canEdit && (
                       <div
-                        className={`absolute -top-10 ${
-                          isMe ? "right-0" : "left-0"
-                        } z-50`}
+                        className={`absolute -top-10 ${isMe ? "right-0" : "left-0"
+                          } z-50`}
                       >
                         <div className="flex items-center gap-1 bg-background border border-border rounded-lg shadow-lg px-1 py-1">
                           <Button
@@ -175,11 +176,10 @@ const MessageList: React.FC<MessageListProps> = ({
 
                     {/* Message Bubble */}
                     <div
-                      className={`rounded-lg px-4 py-2 ${
-                        isMe
+                      className={`rounded-lg px-4 py-2 ${isMe
                           ? "bg-primary text-primary-foreground rounded-br-none"
                           : "bg-muted rounded-bl-none"
-                      }`}
+                        }`}
                     >
                       {/* Sender Name (for group chats or received messages) */}
                       {!isMe && msg.content && (
@@ -218,41 +218,37 @@ const MessageList: React.FC<MessageListProps> = ({
                                   href={attachment.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                                    isMe
+                                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isMe
                                       ? "bg-primary-foreground/10 hover:bg-primary-foreground/20"
                                       : "bg-background hover:bg-accent"
-                                  }`}
+                                    }`}
                                 >
                                   <div className="h-10 w-10 rounded bg-purple-500/20 flex items-center justify-center flex-shrink-0">
                                     <File className="h-5 w-5 text-purple-500" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p
-                                      className={`text-sm font-medium truncate ${
-                                        isMe
+                                      className={`text-sm font-medium truncate ${isMe
                                           ? "text-primary-foreground"
                                           : "text-foreground"
-                                      }`}
+                                        }`}
                                     >
                                       {attachment.fileName}
                                     </p>
                                     <p
-                                      className={`text-xs ${
-                                        isMe
+                                      className={`text-xs ${isMe
                                           ? "text-primary-foreground/70"
                                           : "text-muted-foreground"
-                                      }`}
+                                        }`}
                                     >
                                       {formatFileSize(attachment.fileSize)}
                                     </p>
                                   </div>
                                   <Download
-                                    className={`h-4 w-4 flex-shrink-0 ${
-                                      isMe
+                                    className={`h-4 w-4 flex-shrink-0 ${isMe
                                         ? "text-primary-foreground/70"
                                         : "text-muted-foreground"
-                                    }`}
+                                      }`}
                                   />
                                 </a>
                               )}
@@ -265,32 +261,31 @@ const MessageList: React.FC<MessageListProps> = ({
                       {msg.reactions && msg.reactions.length > 0 && (
                         <MessageReactions
                           reactions={msg.reactions}
-                          currentUserId={currentUser?._id}
+                          // FIX: Add .toString() to ensure it passes a string
+                          currentUserId={currentUser?._id?.toString()}
                           onReactionClick={(emoji) => handleReact(msg._id, emoji)}
                         />
                       )}
 
                       {/* Timestamp and Emoji Button */}
                       <div
-                        className={`flex items-center gap-2 mt-1 text-xs ${
-                          isMe
+                        className={`flex items-center gap-2 mt-1 text-xs ${isMe
                             ? "text-primary-foreground/70 justify-end"
                             : "text-muted-foreground justify-end"
-                        }`}
+                          }`}
                       >
                         {msg.isEdited && (
                           <span className="italic">edited</span>
                         )}
                         <span>{formatTime(msg.createdAt)}</span>
-                        
+
                         {/* Emoji Reaction Button - Bigger and Outside */}
                         <div className="relative">
                           <button
                             ref={showEmojiPicker ? emojiButtonRef : null}
                             onClick={(e) => toggleReactions(msg._id, e)}
-                            className={`p-1.5 rounded-full bg-background border border-border text-white shadow-md hover:shadow-lg hover:scale-110 transition-all ${
-                              isHovered || showEmojiPicker ? 'opacity-100' : 'opacity-0'
-                            }`}
+                            className={`p-1.5 rounded-full bg-background border border-border text-white shadow-md hover:shadow-lg hover:scale-110 transition-all ${isHovered || showEmojiPicker ? 'opacity-100' : 'opacity-0'
+                              }`}
                             title="Add reaction"
                           >
                             <Smile className="h-4 w-4 text-foreground" />
@@ -298,13 +293,12 @@ const MessageList: React.FC<MessageListProps> = ({
 
                           {/* Emoji Picker Dropdown - Bigger */}
                           {showEmojiPicker && (
-                            <div 
+                            <div
                               id={`emoji-picker-${msg._id}`}
-                              className={`absolute ${isMe ? 'right-0 translate-x-5 -translate-y-1' : 'left-0 -translate-x-5 -translate-y-1'} bg-background border-2 border-border rounded-xl shadow-2xl p-3 z-[100] animate-in fade-in ${
-                                pickerPosition === 'top' 
-                                  ? 'bottom-full mb-3 slide-in-from-bottom-2' 
+                              className={`absolute ${isMe ? 'right-0 translate-x-5 -translate-y-1' : 'left-0 -translate-x-5 -translate-y-1'} bg-background border-2 border-border rounded-xl shadow-2xl p-3 z-[100] animate-in fade-in ${pickerPosition === 'top'
+                                  ? 'bottom-full mb-3 slide-in-from-bottom-2'
                                   : 'top-full mt-3 slide-in-from-top-2'
-                              }`}
+                                }`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="flex gap-2">
@@ -325,12 +319,11 @@ const MessageList: React.FC<MessageListProps> = ({
                                 ))}
                               </div>
                               {/* Bigger Arrow pointer */}
-                              <div 
-                                className={`absolute ${isMe ? 'right-6' : 'left-6'} w-5 h-5 bg-background border-border ${
-                                  pickerPosition === 'top'
+                              <div
+                                className={`absolute ${isMe ? 'right-6' : 'left-6'} w-5 h-5 bg-background border-border ${pickerPosition === 'top'
                                     ? '-bottom-2.5 border-b-2 border-r-2 rotate-45'
                                     : '-top-2.5 border-t-2 border-l-2 rotate-45'
-                                }`}
+                                  }`}
                               />
                             </div>
                           )}

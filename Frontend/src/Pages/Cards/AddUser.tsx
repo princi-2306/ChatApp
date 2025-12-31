@@ -1,16 +1,13 @@
-// TS done
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Search } from 'lucide-react';
-import { useState, useEffect } from 'react'; // 1. Import useEffect
+import { useState, useEffect } from 'react';
 import userPost from '@/components/store/userStore';
 import { toast } from 'sonner';
 import axios from 'axios';
 import Loader from '@/components/ui/Loader';
 import useChatStore from '@/components/store/chatStore';
-
 
 interface User {
   _id: string;
@@ -20,35 +17,34 @@ interface User {
   token?: string;
 }
 
+// 1. Define the props interface
+interface AddUserProps {
+  onClose: () => void;
+}
 
-const AddUser = ({ onClose }) => {
+// 2. Add type annotation to props
+const AddUser = ({ onClose }: AddUserProps) => {
   const currentUser = userPost((state) => state.currentUser);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const setCurrentChat = useChatStore((state) => state.setCurrentChat)
   const [isShowUsers, setIsShowUser] = useState<User[]>([]);
 
-
-  // 2. Add this useEffect for "Live Search" (Debouncing)
   useEffect(() => {
-    // Set a timer to run the search after 500ms of inactivity
     const delayDebounceFn = setTimeout(() => {
       if (search.trim()) {
         handleSearch(search);
       } else {
-        setIsShowUser([]); // Clear results if input is empty
+        setIsShowUser([]);
         setLoading(false);
       }
     }, 500);
 
-    // Cleanup: This cancels the previous timer if the user types again 
-    // before the 500ms is up.
     return () => clearTimeout(delayDebounceFn);
-  }, [search]); // Runs whenever 'search' state changes
+  }, [search]);
 
-  // 3. Update handleSearch to accept the query string directly
-  const handleSearch = async (query) => {
-    // Guard clause: if query is empty or not a string (e.g. event object), stop
+  // 3. Add type 'string' to query
+  const handleSearch = async (query: string) => {
     if (!query || typeof query !== 'string') return;
 
     try {
@@ -58,9 +54,9 @@ const AddUser = ({ onClose }) => {
           Authorization: `Bearer ${currentUser?.token}`
         }
       };
-      // Use the 'query' argument, not the state, to ensure accuracy inside the effect
+      
       const response = await axios.get(
-        `http://localhost:8000/api/v1/users/register?search=${query}`,
+        `${import.meta.env.VITE_URL}/users/register?search=${query}`,
         config
       );
       
@@ -68,13 +64,13 @@ const AddUser = ({ onClose }) => {
       setIsShowUser(response.data.data);
       console.log(response.data.data);
     } catch (error) {
-      // toast.error("failed to load results") // commented out to avoid spamming errors while typing
       console.log(error);
       setLoading(false);
     }
   }
 
-  const accessChat = async (userId) => {
+  // 4. Add type 'string' to userId
+  const accessChat = async (userId: string) => {
     try {
       setLoading(true);
       const config = {
@@ -84,7 +80,7 @@ const AddUser = ({ onClose }) => {
         },
       };
       const response = await axios.post(
-        "http://localhost:8000/api/v1/chats/",
+        `${import.meta.env.VITE_URL}/chats/`,
         { userId },
         config
       );
@@ -106,7 +102,7 @@ const AddUser = ({ onClose }) => {
       }
 
       console.error(error);
-      setLoading(false); // Ensure loading stops on error
+      setLoading(false);
     }
   }
 
@@ -129,9 +125,6 @@ const AddUser = ({ onClose }) => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          {/* The button is now purely visual/optional since search is automatic.
-             I kept it but clicking it just manually triggers the same function.
-          */}
           <Button onClick={() => handleSearch(search)} size="sm" disabled={loading}>
             {loading ? <Loader /> : "Go"}
           </Button>
@@ -158,7 +151,6 @@ const AddUser = ({ onClose }) => {
                     </div>
                   ))
                 ) : (
-                  // Only show "No users found" if the user has actually typed something
                   search && <p className="text-center text-muted-foreground">No users found</p>
                 )
               )}

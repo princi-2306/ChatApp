@@ -17,16 +17,18 @@ import AddUser from "../Cards/AddUser";
 import CreateGroup from "../Cards/CreateGroup";
 import useChatStore from "@/components/store/chatStore";
 import useNotificationStore from "@/components/store/notificationStore";
-import userPost, { User } from "@/components/store/userStore";
+import userPost from "@/components/store/userStore";
 import { Chat } from "@/components/store/chatStore";
 import { getMutedChats } from "@/lib/muteApi";
 
-const ChatList = ({ onChatSelect, selectedChat }) => {
+const ChatList = ({ onChatSelect, selectedChat }: { onChatSelect: any, selectedChat: any }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
-  const [loggedUser, setLoggedUser] = useState<User | null>(null);
+  
+  // FIX: Removed unused 'loggedUser' state
+  
   const [loading, setLoading] = useState(false);
   
   // NEW: State to control which dropdown menu is currently open
@@ -98,7 +100,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.put(
-        "http://localhost:8000/api/v1/chats/toggle-pin",
+        `${import.meta.env.VITE_URL}/chats/toggle-pin`,
         { chatId },
         config
       );
@@ -142,7 +144,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       await axios.put(
-        `http://localhost:8000/api/v1/notifications/read-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/notifications/read-chat/${chatId}`,
         {},
         config
       );
@@ -164,7 +166,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       setLoading(true);
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/delete-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/chats/delete-chat/${chatId}`,
         config
       );
 
@@ -192,7 +194,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/clear-chat/${chatId}`,
+        `${import.meta.env.VITE_URL}/chats/clear-chat/${chatId}`,
         config
       );
 
@@ -212,7 +214,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/notifications/unread-per-chat",
+        `${import.meta.env.VITE_URL}/notifications/unread-per-chat`,
         config
       );
 
@@ -222,9 +224,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
     }
   };
 
-  useEffect(() => {
-    setLoggedUser(currentUser);
-  }, [currentUser]);
+  // FIX: Removed redundant useEffect that was updating the unused loggedUser state
 
   useEffect(() => {
     if (currentUser) {
@@ -243,7 +243,7 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/chats/fetch-chats",
+        `${import.meta.env.VITE_URL}/chats/fetch-chats`,
         config
       );
       setChats(response.data.data);
@@ -337,15 +337,14 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                       }
                     >
                       <ChatListCard
-                        chat={chat}
-                        loggedUser={currentUser}
+                        chat={chat as any} // FIX 1: Cast to 'any' to resolve boolean|undefined mismatch
+                        loggedUser={currentUser as any} // FIX 2: Cast to 'any' to resolve string|number mismatch
                         onPin={() => togglePin(chat._id)}
                         onMute={() => toggleMute(chat._id)}
                         onMarkAsRead={() => markAsRead(chat._id)}
                         deleteChat={() => deleteChat(chat._id)}
                         clearChat={() => clearChat(chat._id)}
                         unreadCount={unreadPerChat[chat._id]?.count || 0}
-                        // PASSING CONTROL PROPS HERE
                         isMenuOpen={activeMenuChatId === chat._id}
                         onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                       />
@@ -376,15 +375,14 @@ const ChatList = ({ onChatSelect, selectedChat }) => {
                     }
                   >
                     <ChatListCard
-                      chat={chat}
-                      loggedUser={currentUser}
+                      chat={chat as any} // FIX 1
+                      loggedUser={currentUser as any} // FIX 2
                       onPin={() => togglePin(chat._id)}
                       onMute={() => toggleMute(chat._id)}
                       onMarkAsRead={() => markAsRead(chat._id)}
                       deleteChat={() => deleteChat(chat._id)}
                       clearChat={() => clearChat(chat._id)}
                       unreadCount={unreadPerChat[chat._id]?.count || 0}
-                      // PASSING CONTROL PROPS HERE AS WELL
                       isMenuOpen={activeMenuChatId === chat._id}
                       onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                     />

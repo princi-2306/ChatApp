@@ -1,4 +1,6 @@
-import React, { useState } from 'react'
+// TS DONE
+
+import { useState } from 'react'
 import { Button } from "@/components/ui/button";
 import {
   DialogClose,
@@ -14,15 +16,15 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import userPost from '@/components/store/userStore';
 
-const ChangeDetails = ({ onClose, currentUser }) => {
-  const [loading, setLoading] = useState(false);
+const ChangeDetails = ({ onClose, currentUser }: any) => {
+  // const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: currentUser.username,
     email: currentUser.email
   })
   const updateDetails = userPost((state) => state.updateDetails)
 
-  const handleChange = (e) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -31,7 +33,7 @@ const ChangeDetails = ({ onClose, currentUser }) => {
   };
 
 
-  const handleUserDetailsChange = async (e) => {
+  const handleUserDetailsChange = async (e: any) => {
     e.preventDefault();
 
     try {
@@ -42,10 +44,10 @@ const ChangeDetails = ({ onClose, currentUser }) => {
         }
       };
 
-      setLoading(true);
+      // setLoading(true);
 
       const response = await axios.patch(
-        "http://localhost:8000/api/v1/users/update-details",
+        `${import.meta.env.VITE_URL}/users/update-details`,
         {
           username: formData.username,
           email: formData.email
@@ -60,7 +62,7 @@ const ChangeDetails = ({ onClose, currentUser }) => {
       toast.error("Unable to update user details");
       console.error("user update error: ", error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   } 
 

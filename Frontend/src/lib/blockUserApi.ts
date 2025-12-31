@@ -1,8 +1,9 @@
-// Create this file at: src/lib/api/blockUserApi.ts
+// TS DONE
+
 import axios from "axios";
 import { User } from "@/components/store/userStore";
 
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL = `${import.meta.env.VITE_URL}`;
 
 export interface BlockUserResponse {
   success: boolean;

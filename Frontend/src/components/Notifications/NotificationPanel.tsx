@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useEffect, useState } from "react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import useNotificationStore from "@/components/store/notificationStore";
 import userPost from "@/components/store/userStore";
-import useChatStore from "@/components/store/chatStore";
 import axios from "axios";
 import { toast } from "sonner";
 
@@ -44,7 +45,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onNotificationCli
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/notifications",
+        `${import.meta.env.VITE_URL}/notifications`,
         config
       );
 
@@ -65,7 +66,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onNotificationCli
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/notifications/unread-count",
+        `${import.meta.env.VITE_URL}/notifications/unread-count`,
         config
       );
 
@@ -84,7 +85,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onNotificationCli
       };
 
       await axios.put(
-        `http://localhost:8000/api/v1/notifications/read/${notificationId}`,
+        `${import.meta.env.VITE_URL}/notifications/read/${notificationId}`,
         {},
         config
       );
@@ -104,7 +105,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onNotificationCli
       };
 
       await axios.put(
-        "http://localhost:8000/api/v1/notifications/read-all",
+        `${import.meta.env.VITE_URL}/notifications/read-all`,
         {},
         config
       );
@@ -126,7 +127,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onNotificationCli
       };
 
       await axios.delete(
-        `http://localhost:8000/api/v1/notifications/${notificationId}`,
+        `${import.meta.env.VITE_URL}/notifications/${notificationId}`,
         config
       );
 

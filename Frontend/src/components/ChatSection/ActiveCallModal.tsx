@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useEffect, useState } from "react";
 import { PhoneOff, Mic, MicOff } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

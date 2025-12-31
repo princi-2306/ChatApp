@@ -1,3 +1,5 @@
+// TS DONE
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -76,7 +78,7 @@ const ChangePasswordModal = ({ isOpen, onClose }: ChangePasswordModalProps) => {
     try {
       const token = localStorage.getItem('tokens')
       const { data } = await axios.post(
-        "http://localhost:8000/api/v1/users/change-password",
+        `${import.meta.env.VITE_URL}/users/change-password`,
         {
           oldPassword: passwords.oldPassword,
           newPassword: passwords.newPassword

@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   Dialog,
@@ -9,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Upload, Trash2, Image as ImageIcon, Edit3 } from "lucide-react";
+import { Upload, Trash2, Edit3 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { Chat } from "@/components/store/chatStore";
@@ -96,7 +98,7 @@ const EditGroupDetails: React.FC<EditGroupDetailsProps> = ({
       };
 
       const response = await axios.put(
-        "http://localhost:8000/api/v1/chats/remove-group-avatar",
+        `${import.meta.env.VITE_URL}/chats/remove-group-avatar`,
         { chatId: group._id },
         config
       );
@@ -157,7 +159,7 @@ const EditGroupDetails: React.FC<EditGroupDetailsProps> = ({
       };
 
       const response = await axios.put(
-        "http://localhost:8000/api/v1/chats/update-group-details",
+        `${import.meta.env.VITE_URL}/chats/update-group-details`,
         formData,
         config
       );

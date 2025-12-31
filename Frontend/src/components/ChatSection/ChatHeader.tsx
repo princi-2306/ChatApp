@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useState, useEffect } from "react";
 import {
   Search,
@@ -9,7 +11,6 @@ import {
   Ban,
   ShieldCheck,
   BellOff,
-  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,7 +37,7 @@ import { Chat } from "@/components/store/chatStore";
 import userPost from "@/components/store/userStore";
 import useChatStore from "@/components/store/chatStore";
 import { blockUser, unblockUser, checkIfUserBlocked } from "@/lib/blockUserApi";
-import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi";
+// import { muteChat as muteChatApi, unmuteChat as unmuteChatApi } from "@/lib/muteApi";
 import { toast } from "sonner";
 
 interface ChatHeaderProps {
@@ -59,7 +60,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   onBack, 
   formatTime,
   onSearch,
-  isSearching,
   searchQuery,
   onViewProfile,
   onClearChat,
@@ -71,14 +71,13 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [isClearing, setIsClearing] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockLoading, setIsBlockLoading] = useState(false);
-  const [isMuteLoading, setIsMuteLoading] = useState(false);
 
   const currentUser = userPost((state) => state.currentUser);
   const addBlockedUser = userPost((state) => state.addBlockedUser);
   const removeBlockedUser = userPost((state) => state.removeBlockedUser);
   const deleteChat = useChatStore((state) => state.deleteChat);
-  const muteChat = useChatStore((state) => state.muteChat);
-  const unmuteChat = useChatStore((state) => state.unmuteChat);
+  // const muteChat = useChatStore((state) => state.muteChat);
+  // const unmuteChat = useChatStore((state) => state.unmuteChat);
 
   const isMuted = currentChat?.isMuted || currentChat?.mute;
 
@@ -162,31 +161,28 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     }
   };
 
-  const handleToggleMute = async () => {
-    if (!currentUser?.token) return;
+  // const handleToggleMute = async () => {
+  //   if (!currentUser?.token) return;
 
-    setIsMuteLoading(true);
-    try {
-      if (isMuted) {
-        // Unmute
-        await unmuteChatApi(currentChat._id, currentUser.token);
-        unmuteChat(currentChat._id);
-        toast.success("Chat unmuted. You will now receive notifications.");
-      } else {
-        // Mute
-        await muteChatApi(currentChat._id, currentUser.token);
-        muteChat(currentChat._id);
-        toast.success("Chat muted. You won't receive notifications.");
-      }
-    } catch (error: any) {
-      console.error("Error toggling mute:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to toggle mute"
-      );
-    } finally {
-      setIsMuteLoading(false);
-    }
-  };
+  //   try {
+  //     if (isMuted) {
+  //       // Unmute
+  //       await unmuteChatApi(currentChat._id, currentUser.token);
+  //       unmuteChat(currentChat._id);
+  //       toast.success("Chat unmuted. You will now receive notifications.");
+  //     } else {
+  //       // Mute
+  //       await muteChatApi(currentChat._id, currentUser.token);
+  //       muteChat(currentChat._id);
+  //       toast.success("Chat muted. You won't receive notifications.");
+  //     }
+  //   } catch (error: any) {
+  //     console.error("Error toggling mute:", error);
+  //     toast.error(
+  //       error.response?.data?.message || "Failed to toggle mute"
+  //     );
+  //   }
+  // };
 
   return (
     <>

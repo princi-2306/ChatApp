@@ -1,7 +1,8 @@
+// TS DONE
+
 import React, { useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -10,7 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Trash2, MessageSquare } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import axios from "axios";
@@ -47,7 +48,7 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
       };
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/delete-chat/${chat._id}`,
+        `${import.meta.env.VITE_URL}/chats/delete-chat/${chat._id}`,
         config
       );
 

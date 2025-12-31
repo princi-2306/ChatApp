@@ -1,24 +1,29 @@
-import React, { useState } from "react";
+// TS DONE
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogHeader, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   DialogContent,
   DialogTitle,
-  DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Label } from "@radix-ui/react-label";
 import { Loader } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
 import userPost from "@/components/store/userStore";
+import { User } from "@/components/store/userStore";
 
-const SignOut = ({ onClose, currentUser }) => {
+interface SignOutProps {
+  currentUser: User | null;
+  onClose: () => void; // <--- ADD THIS LINE
+}
+
+const SignOut = ({ currentUser }: SignOutProps) => {
   const [loading, setLoading] = useState(false);
   const logout = userPost((state) => state.logout);
 
-  const handleSignOut = async (e) => {
+  const handleSignOut = async (e: any) => {
     e.preventDefault();
     const config = {
       headers: {
@@ -27,7 +32,7 @@ const SignOut = ({ onClose, currentUser }) => {
     };
     setLoading(true);
     try {
-      await axios.post("http://localhost:8000/api/v1/users/logout", {}, config);
+      await axios.post(`${import.meta.env.VITE_URL}/users/logout`, {}, config);
       toast.success("Logged out successfully!");
       logout();
       window.location.href = "/";

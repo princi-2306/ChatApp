@@ -1,3 +1,4 @@
+// TS DONE
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
@@ -95,7 +96,7 @@ const AddMember: React.FC<AddMembersDialogProps> = ({
       };
 
       const response = await axios.get(
-        `http://localhost:8000/api/v1/users/search?search=${encodeURIComponent(
+        `${import.meta.env.VITE_URL}/users/search?search=${encodeURIComponent(
           query
         )}`,
         config
@@ -172,7 +173,7 @@ const AddMember: React.FC<AddMembersDialogProps> = ({
 
         // Make API call to add members
         const response = await axios.put(
-          "http://localhost:8000/api/v1/chats/groupadd",
+          `${import.meta.env.VITE_URL}/chats/groupadd`,
           {
             userIds: userIds,
             chatId: currentChat._id,

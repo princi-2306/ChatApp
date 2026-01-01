@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils"; // Ensure this path matches your utils location
-import { Loader2 } from "lucide-react"; // Assuming you use lucide-react, or replace with your SVG
+
 
 interface LoaderProps {
   className?: string;

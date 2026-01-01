@@ -133,18 +133,18 @@ const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className="flex-1 overflow-hidden">
       <ScrollArea className="h-full p-4">
-        {loading ? (
-          <div className="flex h-screen w-full items-center justify-center -translate-y-36">
-            <Loader className="h-12 w-12 animate-spin text-primary" />
-          </div>
-        ) : (
-          // MESSAGE LIST: Uses space-y-4 for vertical stacking
-          <div className="space-y-4">
-            {messages.map((msg) => {
-              const isMe = msg.sender?._id === currentUser?._id;
-              const canEdit = canEditMessage(msg);
-              const isHovered = hoveredMessageId === msg._id;
-              const showEmojiPicker = showReactions === msg._id;
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center md:h-screen">
+              <Loader className="h-12 w-12 md:translate-y-28 translate-y-44  animate-spin" />
+            </div>
+          ) : (
+            <>
+              {messages.map((msg) => {
+                const isMe = msg.sender?._id === currentUser?._id;
+                const canEdit = canEditMessage(msg);
+                const isHovered = hoveredMessageId === msg._id;
+                const showEmojiPicker = showReactions === msg._id;
 
               return (
                 <div

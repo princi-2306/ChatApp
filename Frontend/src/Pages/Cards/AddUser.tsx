@@ -9,6 +9,7 @@ import axios from 'axios';
 import Loader from '@/components/ui/Loader';
 import useChatStore from '@/components/store/chatStore';
 
+// 1. Define the User interface
 interface User {
   _id: string;
   username: string;
@@ -17,18 +18,15 @@ interface User {
   token?: string;
 }
 
-// 1. Define the props interface
-interface AddUserProps {
-  onClose: () => void;
-}
-
-// 2. Add type annotation to props
-const AddUser = ({ onClose }: AddUserProps) => {
+const AddUser = ({ onClose }: { onClose: () => void }) => {
   const currentUser = userPost((state) => state.currentUser);
+  
+  // 2. Explicitly tell useState that this is an array of 'User' objects
+  const [isShowUsers, setIsShowUser] = useState<User[]>([]);
+  
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const setCurrentChat = useChatStore((state) => state.setCurrentChat)
-  const [isShowUsers, setIsShowUser] = useState<User[]>([]);
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -43,7 +41,6 @@ const AddUser = ({ onClose }: AddUserProps) => {
     return () => clearTimeout(delayDebounceFn);
   }, [search]);
 
-  // 3. Add type 'string' to query
   const handleSearch = async (query: string) => {
     if (!query || typeof query !== 'string') return;
 
@@ -56,7 +53,7 @@ const AddUser = ({ onClose }: AddUserProps) => {
       };
       
       const response = await axios.get(
-        `${import.meta.env.VITE_URL}/users/register?search=${query}`,
+        `http://localhost:8000/api/v1/users/register?search=${query}`,
         config
       );
       
@@ -69,7 +66,6 @@ const AddUser = ({ onClose }: AddUserProps) => {
     }
   }
 
-  // 4. Add type 'string' to userId
   const accessChat = async (userId: string) => {
     try {
       setLoading(true);
@@ -80,7 +76,7 @@ const AddUser = ({ onClose }: AddUserProps) => {
         },
       };
       const response = await axios.post(
-        `${import.meta.env.VITE_URL}/chats/`,
+        "http://localhost:8000/api/v1/chats/",
         { userId },
         config
       );
@@ -138,13 +134,16 @@ const AddUser = ({ onClose }: AddUserProps) => {
                 </div>
               ) : (
                 isShowUsers.length > 0 ? (
-                  isShowUsers?.map(user => (
+                  isShowUsers.map((user) => (
                     <div
                       key={user._id}
                       className="flex items-center justify-between p-2 border rounded-md hover:bg-muted cursor-pointer"
                     >
-                      <img className='w-8 h-8 rounded-full' src={user.avatar} alt="" />
-                      <span>{user.username}</span>
+                      <div className="flex items-center gap-2">
+                        {/* Optional: Add avatar display here since we defined it in the type */}
+                         <img src={user.avatar} alt={user.username} className="w-8 h-8 rounded-full" />
+                        <span>{user.username}</span>
+                      </div>
                       <Button size="sm" variant="secondary" onClick={() => accessChat(user._id)}>
                         Add
                       </Button>

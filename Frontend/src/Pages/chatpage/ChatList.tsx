@@ -21,14 +21,12 @@ import userPost from "@/components/store/userStore";
 import { Chat } from "@/components/store/chatStore";
 import { getMutedChats } from "@/lib/muteApi";
 
-const ChatList = ({ onChatSelect, selectedChat }: { onChatSelect: any, selectedChat: any }) => {
+const ChatList = ({ onChatSelect, selectedChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
-  
-  // FIX: Removed unused 'loggedUser' state
-  
+  const [loggedUser, setLoggedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   
   // NEW: State to control which dropdown menu is currently open
@@ -345,6 +343,7 @@ const ChatList = ({ onChatSelect, selectedChat }: { onChatSelect: any, selectedC
                         deleteChat={() => deleteChat(chat._id)}
                         clearChat={() => clearChat(chat._id)}
                         unreadCount={unreadPerChat[chat._id]?.count || 0}
+                        // PASSING CONTROL PROPS HERE
                         isMenuOpen={activeMenuChatId === chat._id}
                         onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                       />
@@ -383,6 +382,7 @@ const ChatList = ({ onChatSelect, selectedChat }: { onChatSelect: any, selectedC
                       deleteChat={() => deleteChat(chat._id)}
                       clearChat={() => clearChat(chat._id)}
                       unreadCount={unreadPerChat[chat._id]?.count || 0}
+                      // PASSING CONTROL PROPS HERE AS WELL
                       isMenuOpen={activeMenuChatId === chat._id}
                       onMenuOpenChange={(open) => setActiveMenuChatId(open ? chat._id : null)}
                     />

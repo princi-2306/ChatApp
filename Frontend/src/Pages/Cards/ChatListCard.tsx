@@ -1,3 +1,4 @@
+// TS start
 import React, {useState} from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +74,7 @@ interface ChatListCardProps {
   isMenuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
 }
+  
 
 const ChatListCard: React.FC<ChatListCardProps> = ({
   chat,

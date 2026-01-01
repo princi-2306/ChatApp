@@ -1,83 +1,69 @@
+// TS DONE
+
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = `${import.meta.env.VITE_URL}`;
 
 export const muteChat = async (chatId: string, token: string) => {
-  try {
-    const config = {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    };
+  const config = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  };
 
-    const response = await axios.put(
-      `${API_BASE_URL}/chats/mute-chat`,
-      { chatId },
-      config
-    );
+  const response = await axios.put(
+    `${API_BASE_URL}/chats/mute-chat`,
+    { chatId },
+    config
+  );
 
-    return response.data;
-  } catch (error: any) {
-    throw error;
-  }
+  return response.data;
 };
 
 export const unmuteChat = async (chatId: string, token: string) => {
-  try {
-    const config = {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    };
+  const config = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  };
 
-    const response = await axios.put(
-      `${API_BASE_URL}/chats/unmute-chat`,
-      { chatId },
-      config
-    );
+  const response = await axios.put(
+    `${API_BASE_URL}/chats/unmute-chat`,
+    { chatId },
+    config
+  );
 
-    return response.data;
-  } catch (error: any) {
-    throw error;
-  }
+  return response.data;
 };
 
 export const getMutedChats = async (token: string) => {
-  try {
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
+  const config = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
 
-    const response = await axios.get(
-      `${API_BASE_URL}/chats/muted-chats`,
-      config
-    );
+  const response = await axios.get(
+    `${API_BASE_URL}/chats/muted-chats`,
+    config
+  );
 
-    return response.data;
-  } catch (error: any) {
-    throw error;
-  }
+  return response.data;
 };
 
 export const checkIfChatMuted = async (chatId: string, token: string) => {
-  try {
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
+  const config = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
 
-    const response = await axios.get(
-      `${API_BASE_URL}/chats/is-muted/${chatId}`,
-      config
-    );
+  const response = await axios.get(
+    `${API_BASE_URL}/chats/is-muted/${chatId}`,
+    config
+  );
 
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
+  return response.data;
 };

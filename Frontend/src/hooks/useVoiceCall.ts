@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+// TS DONE
+
+import { useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { User } from "@/components/store/userStore";
 import useCallStore from "@/components/store/callStore";
@@ -208,7 +210,7 @@ export const useVoiceCall = (
     // Save call log to backend
     try {
       await axios.post(
-        "http://localhost:8000/api/v1/calls/log",
+        `${import.meta.env.VITE_URL}/calls/log`,
         {
           receiverId: activeCall.userId,
           callType: "voice",
@@ -310,14 +312,14 @@ export const useVoiceCall = (
       }
     });
 
-    // Call rejected
-    socket.on("call:rejected", ({ receiverId, reason }) => {
+    // FIX 1: Removed unused 'receiverId'
+    socket.on("call:rejected", ({ reason }) => {
       toast.error(reason || "Call rejected");
       cleanup();
     });
 
-    // Call ended
-    socket.on("call:ended", ({ duration }) => {
+    // FIX 2: Removed unused 'duration'
+    socket.on("call:ended", () => {
       toast.info("Call ended");
       cleanup();
     });
@@ -328,8 +330,8 @@ export const useVoiceCall = (
       cleanup();
     });
 
-    // ICE candidate
-    socket.on("webrtc:ice-candidate", async ({ from, candidate }) => {
+    // FIX 3: Removed unused 'from'
+    socket.on("webrtc:ice-candidate", async ({ candidate }) => {
       if (peerConnectionRef.current) {
         try {
           await peerConnectionRef.current.addIceCandidate(
@@ -348,6 +350,7 @@ export const useVoiceCall = (
       socket.off("call:ended");
       socket.off("call:busy");
       socket.off("webrtc:ice-candidate");
+      socket.disconnect()
     };
   }, [socket, currentUser, otherUser]);
 

@@ -1,3 +1,5 @@
+// TS DONE
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -109,7 +111,7 @@ const SignupForm = ({ onSwitchToLogin }: SignupFormProps) => {
       }
 
       const { data } = await axios.post(
-        "http://localhost:8000/api/v1/users/register",
+        `${import.meta.env.VITE_URL}/users/register`,
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
       )

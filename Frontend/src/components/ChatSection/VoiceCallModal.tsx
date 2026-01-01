@@ -1,7 +1,8 @@
+// TS DONE
+
 import React from "react";
 import { Phone, PhoneOff } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import useCallStore from "@/components/store/callStore";
 
 interface VoiceCallModalProps {

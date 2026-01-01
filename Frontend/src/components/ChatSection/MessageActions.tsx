@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useState, useRef, useEffect } from "react";
 import { Edit2, Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";

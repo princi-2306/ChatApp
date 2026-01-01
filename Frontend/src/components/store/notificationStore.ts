@@ -1,3 +1,5 @@
+// TS DONE
+
 import { create } from 'zustand';
 import useChatStore from './chatStore';
 
@@ -33,7 +35,7 @@ export interface UnreadCountPerChat {
     lastNotification: Date;
     chatName: string;
     isGroupChat: boolean;
-  };
+  } | undefined; 
 }
 
 interface NotificationStore {

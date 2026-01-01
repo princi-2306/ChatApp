@@ -27,12 +27,13 @@ import EditMessageModal from "@/components/ChatSection/EditMessageModal";
 
 import { useVoiceCall } from "../../hooks/useVoiceCall";
 
-const ENDPOINT = "http://localhost:8000";
-let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
-let currentChatCompare: Chat | undefined;
+const ENDPOINT = `${import.meta.env.VITE_URL}`;
 
+let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
+
+let currentChatCompare: Chat | null | undefined; 
+    
 interface ChatSectionProps {
-  chat?: Chat;
   onBack?: () => void;
 }
 
@@ -45,11 +46,13 @@ const sortMessagesByTime = (messages: Message[]): Message[] => {
   });
 };
 
-const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
+const ChatSection: React.FC<ChatSectionProps> = ({ onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [open, setOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  
+  const [isMobile] = useState(false); 
+
   const [loading, setLoading] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -111,7 +114,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       };
 
       const response = await axios.get(
-        "http://localhost:8000/api/v1/notifications/unread-count",
+        `${import.meta.env.VITE_URL}/notifications/unread-count`,
         config
       );
 
@@ -155,8 +158,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         },
       };
 
-      const { data } = await axios.put(
-        `http://localhost:8000/api/v1/messages/edit/${messageId}`,
+      await axios.put(
+        `${import.meta.env.VITE_URL}/messages/edit/${messageId}`,
         { content: newContent },
         config
       );
@@ -166,11 +169,11 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
         const updatedMessages = prevMessages.map((msg) =>
           msg._id === messageId
             ? {
-              ...msg,
-              content: newContent,
-              isEdited: true,
-              editedAt: new Date(),
-            }
+                ...msg,
+                content: newContent,
+                isEdited: true,
+                editedAt: new Date(),
+              }
             : msg
         );
         return sortMessagesByTime(updatedMessages);
@@ -208,7 +211,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
       };
 
       const { data } = await axios.post(
-        `http://localhost:8000/api/v1/messages/react/${messageId}`,
+        `${import.meta.env.VITE_URL}/messages/react/${messageId}`,
         { emoji },
         config
       );
@@ -238,101 +241,114 @@ const ChatSection: React.FC<ChatSectionProps> = ({ chat, onBack }) => {
     }
   };
 
-
-// In your ChatSection.tsx, update the socket listener for reactions
-// Find this section in your useEffect and UPDATE IT:
-
-useEffect(() => {
-  socket = io(ENDPOINT);
-  socket.emit("setup", currentUser);
-  socket.on("connected", () => setSocketConnected(true));
-
-  socket.on("typing", ({ userId }) => {
-    if (userId !== currentUser?._id) {
-      setIsTyping(true);
-    }
-  });
-
-  socket.on("stop typing", ({ userId }) => {
-    if (userId !== currentUser?._id) {
-      setIsTyping(false);
-    }
-  });
-
-  socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
-    setMessages((prevMessages) => {
-      const updatedMessages = prevMessages.map((msg) =>
-        msg._id === messageId
-          ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
-          : msg
-      );
-      return sortMessagesByTime(updatedMessages);
+  // =========================================================================
+  // FIX: UPDATED SOCKET CONNECTION LOGIC
+  // =========================================================================
+  useEffect(() => {
+    // 1. Initialize socket with specific transport options
+    socket = io(ENDPOINT, {
+        transports: ["websocket"], // Force WebSocket to bypass polling issues
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        autoConnect: false, // Don't connect automatically
     });
-  });
 
-  // 🔥 FIX: Changed from "message reacted" to "message reaction"
-  socket.on("message reaction", ({ messageId, reactions }) => {
-    console.log("🎭 Socket: Received message reaction", { messageId, reactions });
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg._id === messageId ? { ...msg, reactions } : msg
-      )
-    );
-  });
+    // 2. Connect Manually
+    socket.connect();
 
-  socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
-    if (deletedBy !== currentUser?._id) {
-      deleteChat(chatId);
-      toast.info(
-        isGroupChat
-          ? "Group was deleted by admin"
-          : "Chat was deleted by the other user"
-      );
-      if (currentChat?._id === chatId && onBack) {
-        onBack();
-      }
+    // 3. Only emit setup if currentUser exists (Prevents Backend Crash)
+    if (currentUser) {
+        socket.emit("setup", currentUser);
     }
-  });
 
-  socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
-    if (deletedBy !== currentUser?._id) {
-      deleteChat(groupId);
-      toast.info(`Group "${groupName}" was deleted by admin`);
-      if (currentChat?._id === groupId && onBack) {
-        onBack();
+    socket.on("connected", () => setSocketConnected(true));
+
+    socket.on("typing", ({ userId }) => {
+      if (userId !== currentUser?._id) {
+        setIsTyping(true);
       }
-      navigate(-1);
-    }
-  });
+    });
 
-  socket.on("new notification", ({ notification, chatId }) => {
-    addNotification(notification);
-    incrementUnreadForChat(
-      chatId,
-      notification.chat.chatName,
-      notification.chat.isGroupChat
-    );
-    fetchUnreadCount();
+    socket.on("stop typing", ({ userId }) => {
+      if (userId !== currentUser?._id) {
+        setIsTyping(false);
+      }
+    });
 
-    if (!currentChatCompare || currentChatCompare._id !== chatId) {
-      toast.info(`New message from ${notification.sender.username}`, {
-        description: notification.content,
-        duration: 3000,
+    socket.on("message edited", ({ messageId, content, isEdited, editedAt }) => {
+      setMessages((prevMessages) => {
+        const updatedMessages = prevMessages.map((msg) =>
+          msg._id === messageId
+            ? { ...msg, content, isEdited, editedAt: new Date(editedAt) }
+            : msg
+        );
+        return sortMessagesByTime(updatedMessages);
       });
-    }
-  });
+    });
 
+    socket.on("message reaction", ({ messageId, reactions }) => {
+      console.log("🎭 Socket: Received message reaction", { messageId, reactions });
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === messageId ? { ...msg, reactions } : msg
+        )
+      );
+    });
 
-  return () => {
-    socket.off("typing");
-    socket.off("stop typing");
-    socket.off("message edited");
-    socket.off("message reaction");  // 🔥 FIX: Updated event name
-    socket.off("new notification");
-    socket.off("chat deleted");
-    socket.off("group deleted");
-  };
-}, [currentUser]);
+    socket.on("chat deleted", ({ chatId, deletedBy, isGroupChat }) => {
+      if (deletedBy !== currentUser?._id) {
+        deleteChat(chatId);
+        toast.info(
+          isGroupChat
+            ? "Group was deleted by admin"
+            : "Chat was deleted by the other user"
+        );
+        if (currentChat?._id === chatId && onBack) {
+          onBack();
+        }
+      }
+    });
+
+    socket.on("group deleted", ({ groupId, deletedBy, groupName }) => {
+      if (deletedBy !== currentUser?._id) {
+        deleteChat(groupId);
+        toast.info(`Group "${groupName}" was deleted by admin`);
+        if (currentChat?._id === groupId && onBack) {
+          onBack();
+        }
+        navigate(-1);
+      }
+    });
+
+    socket.on("new notification", ({ notification, chatId }) => {
+      addNotification(notification);
+      incrementUnreadForChat(
+        chatId,
+        notification.chat.chatName,
+        notification.chat.isGroupChat
+      );
+      fetchUnreadCount();
+
+      if (!currentChatCompare || currentChatCompare._id !== chatId) {
+        toast.info(`New message from ${notification.sender.username}`, {
+          description: notification.content,
+          duration: 3000,
+        });
+      }
+    });
+
+    // 4. CLEANUP: Disconnect socket when component unmounts
+    return () => {
+      socket.off("typing");
+      socket.off("stop typing");
+      socket.off("message edited");
+      socket.off("message reaction");
+      socket.off("new notification");
+      socket.off("chat deleted");
+      socket.off("group deleted");
+      socket.disconnect(); // Explicitly disconnect
+    };
+  }, [currentUser]);
 
 
   const otherUser: User | null =
@@ -382,7 +398,7 @@ useEffect(() => {
       };
       setLoading(true);
       const { data } = await axios.get(
-        `http://localhost:8000/api/v1/messages/${currentChat._id}`,
+        `${import.meta.env.VITE_URL}/messages/${currentChat._id}`,
         config
       );
 
@@ -444,7 +460,7 @@ useEffect(() => {
       setSelectedFiles([]);
 
       const { data } = await axios.post(
-        "http://localhost:8000/api/v1/messages/sent",
+        `${import.meta.env.VITE_URL}/messages/sent`,
         formData,
         {
           headers: {
@@ -491,7 +507,7 @@ useEffect(() => {
       };
 
       const { data } = await axios.delete(
-        `http://localhost:8000/api/v1/chats/clear-chat/${currentChat._id}`,
+        `${import.meta.env.VITE_URL}/chats/clear-chat/${currentChat._id}`,
         config
       );
 
@@ -571,7 +587,7 @@ useEffect(() => {
       };
 
       await axios.put(
-        `http://localhost:8000/api/v1/chats/group-leave`,
+        `${import.meta.env.VITE_URL}/chats/group-leave`,
         {
           chatId: group._id,
           userId: currentUser._id,
@@ -618,7 +634,8 @@ useEffect(() => {
   useEffect(() => {
     if (useChatStore.getState().isDialogOpen) return;
     fetchMessages();
-    currentChatCompare = currentChat;
+    // FIX 3: variable is now nullable, so this assignment is valid
+    currentChatCompare = currentChat; 
   }, [currentChat]);
 
   useEffect(() => {
@@ -705,13 +722,14 @@ useEffect(() => {
             <GroupChatDetails
               open={showProfileModal}
               onOpenChange={setShowProfileModal}
-              group={currentChat}
+              // FIX 4: Added type assertion 'as any' to bypass compatibility issues
+              group={currentChat as any}
               currentUser={currentUser}
               formatTime={formatTime}
-              onEditGroup={handleEditGroup}
-              onAddMembers={handleAddMembers}
-              onLeaveGroup={handleLeaveGroup}
-              onGroupUpdate={handleGroupUpdate}
+              onEditGroup={handleEditGroup as any}
+              onAddMembers={handleAddMembers as any}
+              onLeaveGroup={handleLeaveGroup as any}
+              onGroupUpdate={handleGroupUpdate as any}
               onGroupChatDelete={handleGroupDeleted}
             />
           ) : (

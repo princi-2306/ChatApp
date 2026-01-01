@@ -1,4 +1,6 @@
-import React, { useState } from 'react'
+// TS DONE
+
+import { useState } from 'react'
 import { Button } from "@/components/ui/button";
 import {
   DialogClose,
@@ -15,20 +17,19 @@ import axios from 'axios';
 import Loader from '@/components/ui/Loader';
 import { toast } from 'sonner';
 import userPost from '@/components/store/userStore';
-const ChangeAvatar = ({ onClose }) => {
 
+
+const ChangeAvatar = ({ onClose }: any) => {
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState();
   const updateAvatar = userPost((state) => state.updateAvatar)
-
   
-  const handleFileSelect = (e) => {
+  const handleFileSelect = (e : any) => {
     const file = e.target.files[0];
     setSelectedFile(file);
   };
 
-
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e : any) => {
     e.preventDefault();
     // const file = e.target.files[0];
     // if (!file) return;
@@ -44,7 +45,7 @@ const ChangeAvatar = ({ onClose }) => {
     setLoading(true);
     try {
       const response = await axios.put(
-        `http://localhost:8000/api/v1/users/update-avatar`,
+        `${import.meta.env.VITE_URL}/users/update-avatar`,
         formData,
         {
           headers: {

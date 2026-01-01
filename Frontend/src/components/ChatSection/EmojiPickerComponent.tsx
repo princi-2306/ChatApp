@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useRef, useEffect } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";

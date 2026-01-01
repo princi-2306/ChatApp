@@ -31,10 +31,16 @@ io.on("connection", (socket) => {
     console.log("connected to socket.io");
 
     socket.on('setup', (userData) => {
-        socket.join(userData._id);
-        console.log("userdata_id : ", userData._id);
-        socket.emit("connected");
-    });
+    // FIX: Add this check to prevent crashing if userData is null
+    if (!userData || !userData._id) {
+        console.log("Setup failed: No user data");
+        return;
+    }
+
+    socket.join(userData._id);
+    console.log("userdata_id : ", userData._id);
+    socket.emit("connected");
+});
 
     socket.on("join chat", (room) => {
         socket.join(room);

@@ -51,6 +51,7 @@ const AddUser = ({ onClose }: { onClose: () => void }) => {
           Authorization: `Bearer ${currentUser?.token}`
         }
       };
+      
       const response = await axios.get(
         `http://localhost:8000/api/v1/users/register?search=${query}`,
         config

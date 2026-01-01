@@ -1,3 +1,5 @@
+// TS DONE
+
 import React, { useEffect, useState } from "react";
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Clock, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,7 +41,7 @@ const CallHistoryPage: React.FC = () => {
       };
 
       const { data } = await axios.get(
-        "http://localhost:8000/api/v1/calls/history",
+        `${import.meta.env.VITE_URL}/calls/history`,
         config
       );
 
@@ -61,7 +63,7 @@ const CallHistoryPage: React.FC = () => {
       };
 
       await axios.delete(
-        `http://localhost:8000/api/v1/calls/${callId}`,
+        `${import.meta.env.VITE_URL}/calls/${callId}`,
         config
       );
 

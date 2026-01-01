@@ -1,7 +1,8 @@
+// TS DONE
+
 import React, { useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Trash2, Users } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { Chat } from "@/components/store/chatStore";
@@ -54,7 +55,7 @@ const DeleteGroupModal: React.FC<DeleteGroupModalProps> = ({
       };
 
       const response = await axios.delete(
-        `http://localhost:8000/api/v1/chats/delete-chat/${group._id}`,
+        `${import.meta.env.VITE_URL}/chats/delete-chat/${group._id}`,
         config
       );
      

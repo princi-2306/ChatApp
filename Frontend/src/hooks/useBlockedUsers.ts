@@ -1,4 +1,5 @@
-// Create this file at: src/hooks/useBlockedUsers.ts
+// TS DONE
+
 import { useEffect } from "react";
 import userPost from "@/components/store/userStore";
 import { getBlockedUsers } from "@/lib/blockUserApi";
